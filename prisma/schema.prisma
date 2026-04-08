@@ -1,0 +1,180 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String       @id @default(uuid())
+  name             String
+  email            String?      @unique
+  emailVerified    DateTime?
+  image            String?
+  role             String       @default("EMPLOYEE") // "ADMIN" or "EMPLOYEE"
+  
+  department       String?
+  license          String?      // e.g., "M365 BP"
+  mobileNumber     String?
+  airportExtension String?
+  deskExtension    String?
+  
+  // Relations
+  assets           Asset[]
+  accessPoints     UserAccess[]
+  accounts         Account[]    // NextAuth relation
+  userAccounts     UserAccount[] // Custom app relation
+  logs             Log[]
+  tickets          Ticket[]
+  sessions         Session[]
+  
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model Asset {
+  id               String       @id @default(uuid())
+  type             String       @default("Serialized") // "Serialized" or "Bulk"
+  category         String       // e.g., "Laptop", "Monitor", "Mouse", "Phone", "Headset", "Keyboard"
+  brandModel       String       // e.g., "Lenovo ThinkCenter Core i5"
+  serialImei       String?      // S/N or IMEI. Can be null for bulk items like mouse.
+  status           String       @default("In Stock") // "In Stock", "Assigned", "Broken", "Retired"
+  conditionComment String?      // e.g., "keyboard replacement", "EXTRA LP CHARGER"
+  
+  // Relations
+  assignedUserId   String?
+  assignedUser     User?        @relation(fields: [assignedUserId], references: [id])
+  
+  logs             Log[]
+  tickets          Ticket[]
+
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model AccessPoint {
+  id               String       @id @default(uuid())
+  name             String       // e.g., "info@company.com" or "Ricoh IM C3010"
+  type             String       // e.g., "Mailbox", "Printer", "SharePoint"
+  description      String?
+
+  users            UserAccess[]
+  
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model UserAccess {
+  id               String       @id @default(uuid())
+  userId           String
+  accessPointId    String
+  grantedAt        DateTime     @default(now())
+
+  user             User         @relation(fields: [userId], references: [id])
+  accessPoint      AccessPoint  @relation(fields: [accessPointId], references: [id])
+  
+  @@unique([userId, accessPointId])
+}
+
+model Log {
+  id               String       @id @default(uuid())
+  action           String       // e.g., "Assigned", "Returned", "Status Change"
+  notes            String?
+  
+  assetId          String
+  asset            Asset        @relation(fields: [assetId], references: [id])
+  
+  userId           String?      // If action was related to a user assignment
+  user             User?        @relation(fields: [userId], references: [id])
+  
+  timestamp        DateTime     @default(now())
+}
+
+model UserAccount {
+  id          String   @id @default(uuid())
+  userId      String
+  accountType String   // "Corporate Email", "Teams", "VPN", "Office Activation", "Secondary Email", "Other"
+  username    String   // The actual username, email, or account ID
+  notes       String?  // e.g. VPN profile name, license key reference, domain
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Ticket {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  status      String   @default("Open") // "Open", "In Progress", "Waiting on User", "Resolved", "Closed"
+  priority    String   @default("Medium") // "Low", "Medium", "High", "Critical"
+  category    String   // "Hardware", "Software", "Access", "Network", "Other"
+  
+  // Relations
+  authorId    String   // The employee who has the issue
+  author      User     @relation(fields: [authorId], references: [id])
+  
+  // Connected asset (optional, e.g., if ticket is about a broken laptop)
+  assetId     String?
+  asset       Asset?   @relation(fields: [assetId], references: [id])
+  
+  comments    TicketComment[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TicketComment {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  
+  body      String
+  isAdmin   Boolean  @default(true) // Highlights comments made by IT
+  
+  createdAt DateTime @default(now())
+}
+
+// ── NEXTAUTH MODELS ──────────────────────────
+
+model Account {
+  id                 String  @id @default(uuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
