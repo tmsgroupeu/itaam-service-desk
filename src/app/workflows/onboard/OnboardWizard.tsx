@@ -3,36 +3,39 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { completeOnboarding } from '@/app/actions'
-import type { User, Asset, AccessPoint } from '@prisma/client'
+import type { User, Asset, AccessPoint, M365Account } from '@prisma/client'
 
-const STEPS = ['Select Employee', 'Assign Hardware', 'Grant Access', 'Confirm & Complete']
+const STEPS = ['Select Employee', 'Assign Hardware', 'Link Accounts', 'Grant Access', 'Confirm & Complete']
 
 function typeColor(t: string) {
   const m: Record<string, string> = { Mailbox: 'badge-purple', Printer: 'badge-yellow', SharePoint: 'badge-green', FileServer: 'badge-blue' }
   return `badge ${m[t] ?? 'badge-gray'}`
 }
 
-export function OnboardWizard({ users, stockAssets, accessPoints }: {
+export function OnboardWizard({ users, stockAssets, accessPoints, availableM365Accounts }: {
   users: User[]
   stockAssets: Asset[]
   accessPoints: AccessPoint[]
+  availableM365Accounts: M365Account[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [step, setStep] = useState(0)
   const [selectedUser, setSelectedUser] = useState('')
   const [selectedAssets, setSelectedAssets] = useState<string[]>([])
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([])
   const [selectedAccess, setSelectedAccess] = useState<string[]>([])
   const [done, setDone] = useState(false)
 
   const user = users.find(u => u.id === selectedUser)
 
   const toggleAsset = (id: string) => setSelectedAssets(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  const toggleAccount = (id: string) => setSelectedAccounts(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   const toggleAccess = (id: string) => setSelectedAccess(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
 
   const handleComplete = () => {
     startTransition(async () => {
-      await completeOnboarding(selectedUser, selectedAssets, selectedAccess)
+      await completeOnboarding(selectedUser, selectedAssets, selectedAccess, selectedAccounts)
       setDone(true)
     })
   }
@@ -43,11 +46,11 @@ export function OnboardWizard({ users, stockAssets, accessPoints }: {
         <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>✅</div>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>Onboarding Complete!</h2>
         <p className="text-muted" style={{ marginBottom: '2rem' }}>
-          <strong>{user?.name}</strong> has been onboarded with {selectedAssets.length} hardware item{selectedAssets.length !== 1 ? 's' : ''} and {selectedAccess.length} access right{selectedAccess.length !== 1 ? 's' : ''}.
+          <strong>{user?.name}</strong> has been onboarded with {selectedAssets.length} hardware item{selectedAssets.length !== 1 ? 's' : ''}, {selectedAccounts.length} account{selectedAccounts.length !== 1 ? 's' : ''}, and {selectedAccess.length} access right{selectedAccess.length !== 1 ? 's' : ''}.
         </p>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
           <a href={`/users/${selectedUser}`} className="btn btn-primary">View Employee Profile</a>
-          <button className="btn btn-secondary" onClick={() => { setStep(0); setSelectedUser(''); setSelectedAssets([]); setSelectedAccess([]); setDone(false) }}>Start Another Onboarding</button>
+          <button className="btn btn-secondary" onClick={() => { setStep(0); setSelectedUser(''); setSelectedAssets([]); setSelectedAccounts([]); setSelectedAccess([]); setDone(false) }}>Start Another Onboarding</button>
         </div>
       </div>
     )
@@ -119,11 +122,32 @@ export function OnboardWizard({ users, stockAssets, accessPoints }: {
           </div>
         )}
 
-        {/* Step 2: Grant Access */}
+        {/* Step 2: Link Accounts */}
         {step === 2 && (
           <div>
+            <div className="section-title">Link M365 Accounts to {user?.name}</div>
+            <p className="text-sm text-muted" style={{ marginBottom: '1.25rem' }}>Select existing mailboxes to link. {availableM365Accounts.length === 0 && <strong>No unassigned accounts.</strong>}</p>
+            <div className="check-list">
+              {availableM365Accounts.map(a => (
+                <label key={a.id} className={`check-item ${selectedAccounts.includes(a.id) ? 'checked' : ''}`} onClick={() => toggleAccount(a.id)}>
+                  <input type="checkbox" readOnly checked={selectedAccounts.includes(a.id)} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{a.displayName}</div>
+                    <div className="font-mono text-xs text-muted">{a.email}</div>
+                  </div>
+                  {a.licenses && <span className="badge badge-purple">{a.licenses.split(',')[0]}</span>}
+                </label>
+              ))}
+              {availableM365Accounts.length === 0 && <div className="empty-state" style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '2rem' }}><p>No unassigned accounts in M365 Directory.</p></div>}
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Grant Access */}
+        {step === 3 && (
+          <div>
             <div className="section-title">Grant Digital Access to {user?.name}</div>
-            <p className="text-sm text-muted" style={{ marginBottom: '1.25rem' }}>Select which mailboxes, printers, and shared resources this employee needs.</p>
+            <p className="text-sm text-muted" style={{ marginBottom: '1.25rem' }}>Select which printers, and shared resources this employee needs.</p>
             <div className="check-list">
               {accessPoints.map(ap => (
                 <label key={ap.id} className={`check-item ${selectedAccess.includes(ap.id) ? 'checked' : ''}`} onClick={() => toggleAccess(ap.id)}>
@@ -139,8 +163,8 @@ export function OnboardWizard({ users, stockAssets, accessPoints }: {
           </div>
         )}
 
-        {/* Step 3: Confirm */}
-        {step === 3 && user && (
+        {/* Step 4: Confirm */}
+        {step === 4 && user && (
           <div>
             <div className="section-title">Review & Confirm Onboarding</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
@@ -155,15 +179,23 @@ export function OnboardWizard({ users, stockAssets, accessPoints }: {
                   <div key={a.id} className="text-sm">{a.category}: {a.brandModel.slice(0, 40)}</div>
                 ))}
               </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div className="section-title" style={{ marginBottom: '0.5rem' }}>Access Rights ({selectedAccess.length} endpoints)</div>
-                {selectedAccess.length === 0 ? <div className="text-sm text-muted">None selected</div> : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-                    {accessPoints.filter(ap => selectedAccess.includes(ap.id)).map(ap => (
-                      <span key={ap.id} className={typeColor(ap.type)}>{ap.name}</span>
-                    ))}
-                  </div>
-                )}
+              <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '2rem' }}>
+                <div style={{ flex: 1 }}>
+                  <div className="section-title" style={{ marginBottom: '0.5rem' }}>M365 Accounts ({selectedAccounts.length} selected)</div>
+                  {selectedAccounts.length === 0 ? <div className="text-sm text-muted">None selected</div> : availableM365Accounts.filter(a => selectedAccounts.includes(a.id)).map(a => (
+                    <div key={a.id} className="text-sm">{a.email}</div>
+                  ))}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div className="section-title" style={{ marginBottom: '0.5rem' }}>Access Rights ({selectedAccess.length} endpoints)</div>
+                  {selectedAccess.length === 0 ? <div className="text-sm text-muted">None selected</div> : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                      {accessPoints.filter(ap => selectedAccess.includes(ap.id)).map(ap => (
+                        <span key={ap.id} className={typeColor(ap.type)}>{ap.name}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="alert alert-warning">
@@ -177,7 +209,7 @@ export function OnboardWizard({ users, stockAssets, accessPoints }: {
       {/* Navigation */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.5rem' }}>
         <button className="btn btn-secondary" onClick={() => setStep(s => s - 1)} disabled={step === 0}>← Back</button>
-        {step < 3 ? (
+        {step < 4 ? (
           <button className="btn btn-primary" onClick={() => setStep(s => s + 1)} disabled={step === 0 && !selectedUser}>
             Continue →
           </button>

@@ -92,16 +92,27 @@ export async function deleteUserAccount(accountId: string, userId: string) {
 // ── ASSETS ─────────────────────────────────
 
 export async function createAsset(formData: FormData) {
-  await prisma.asset.create({
-    data: {
-      type: (formData.get('type') as string) || 'Serialized',
-      category: formData.get('category') as string,
-      brandModel: formData.get('brandModel') as string,
-      serialImei: (formData.get('serialImei') as string) || null,
-      conditionComment: (formData.get('conditionComment') as string) || null,
-      status: 'In Stock',
-    },
+  const quantityStr = formData.get('quantity') as string
+  const quantity = quantityStr ? parseInt(quantityStr, 10) : 1
+  const type = (formData.get('type') as string) || 'Serialized'
+  const category = formData.get('category') as string
+  const brandModel = formData.get('brandModel') as string
+  const serialImei = (formData.get('serialImei') as string) || null
+  const conditionComment = (formData.get('conditionComment') as string) || null
+
+  const creates = Array.from({ length: Math.max(1, quantity) }).map(() => ({
+    type,
+    category,
+    brandModel,
+    serialImei: type === 'Bulk' ? null : serialImei, // Strip S/N for bulk
+    conditionComment,
+    status: 'In Stock',
+  }))
+
+  await prisma.asset.createMany({
+    data: creates
   })
+
   revalidatePath('/hardware')
   return { success: true }
 }
@@ -237,7 +248,7 @@ export async function revokeAccess(userId: string, accessPointId: string) {
 
 // ── WORKFLOWS ───────────────────────────────
 
-export async function completeOnboarding(userId: string, assetIds: string[], accessPointIds: string[]) {
+export async function completeOnboarding(userId: string, assetIds: string[], accessPointIds: string[], m365AccountIds: string[] = []) {
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new Error('User not found')
 
@@ -254,10 +265,15 @@ export async function completeOnboarding(userId: string, assetIds: string[], acc
     })
   }
 
+  for (const accountId of m365AccountIds) {
+    await prisma.m365Account.update({ where: { id: accountId }, data: { assignedUserId: userId } })
+  }
+
   revalidatePath('/users')
   revalidatePath(`/users/${userId}`)
   revalidatePath('/hardware')
   revalidatePath('/access')
+  revalidatePath('/accounts')
   return { success: true, userId }
 }
 

@@ -4,9 +4,8 @@ import { useRouter } from 'next/navigation'
 import { useTransition, useState } from 'react'
 import { updateUser, assignAsset, unassignAsset, swapDevice, grantAccess, revokeAccess } from '@/app/actions'
 import type { User, Asset, AccessPoint, UserAccess, Log, UserAccount, Ticket } from '@prisma/client'
-import { AccountsSection } from './AccountsSection'
 import { TicketsSection } from './TicketsSection'
-import { M365AccountsSection } from './M365AccountsSection'
+import { UnifiedAccountsSection } from './UnifiedAccountsSection'
 import type { M365Account } from '@prisma/client'
 
 type FullUser = User & {
@@ -243,16 +242,18 @@ export function UserProfileClient({ user, stockAssets, allAccessPoints, availabl
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0' }}>
         <TicketsSection userId={user.id} tickets={user.tickets} assets={user.assets} />
-        <M365AccountsSection userId={user.id} accounts={user.m365Accounts} availableAccounts={availableM365Accounts} />
-        <AccountsSection userId={user.id} accounts={user.userAccounts} />
+        <UnifiedAccountsSection userId={user.id} m365Accounts={user.m365Accounts} userAccounts={user.userAccounts} availableM365Accounts={availableM365Accounts} />
       </div>
 
       <div className="profile-grid">
         {/* Hardware Card */}
         <div className="card" style={{ overflow: 'hidden' }}>
           <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="section-title" style={{ marginBottom: 0 }}>Assigned Hardware</div>
-            <span className="badge badge-gray">{user.assets.length}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              <div className="section-title" style={{ marginBottom: 0 }}>Assigned Hardware</div>
+              <span className="badge badge-gray">{user.assets.length}</span>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={() => setAssignOpen(true)}>+ Assign Asset</button>
           </div>
           {user.assets.length === 0 ? (
             <div className="empty-state"><p>No hardware assigned</p></div>

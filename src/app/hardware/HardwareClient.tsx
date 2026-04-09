@@ -58,7 +58,7 @@ function AddEditModal({ asset, onClose }: AddEditModalProps) {
                 <label className="form-label">Category <span>*</span></label>
                 <select name="category" className="form-select" defaultValue={asset?.category ?? ''} required>
                   <option value="">— Select —</option>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {CATEGORIES.filter(c => type === 'Serialized' || ['Keyboard', 'Mouse', 'Headset', 'Cable'].includes(c)).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -69,6 +69,13 @@ function AddEditModal({ asset, onClose }: AddEditModalProps) {
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label className="form-label">Serial Number / IMEI</label>
                   <input name="serialImei" className="form-input" defaultValue={asset?.serialImei ?? ''} placeholder="e.g. 15682BMR3WLV9B7R62" />
+                </div>
+              )}
+              {!asset && (
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label className="form-label">Quantity</label>
+                  <input name="quantity" type="number" min="1" max="100" className="form-input" defaultValue="1" />
+                  <div className="form-hint">Generates this many individual "In Stock" assets.</div>
                 </div>
               )}
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
