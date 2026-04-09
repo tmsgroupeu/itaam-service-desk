@@ -299,6 +299,8 @@ export async function createTicket(formData: FormData) {
     },
   })
 
+  const author = await prisma.user.findUnique({ where: { id: authorId } })
+
   // Add initial comment if provided
   const initialComment = formData.get('comment') as string
   if (initialComment) {
@@ -306,7 +308,7 @@ export async function createTicket(formData: FormData) {
       data: {
         ticketId: ticket.id,
         body: initialComment,
-        isAdmin: authorId !== user.id, // Only true if an admin created it on their behalf
+        isAdmin: true, // Mocking isAdmin while Auth is suspended
       },
     })
   }
@@ -316,7 +318,7 @@ export async function createTicket(formData: FormData) {
   await sendEmail({
     to: adminEmail,
     subject: `New Ticket: ${ticket.title} [${ticket.priority}]`,
-    html: `<h3>New Service Desk Ticket</h3><p><strong>Category:</strong> ${ticket.category}</p><p><strong>Priority:</strong> ${ticket.priority}</p><p><strong>Description:</strong><br/>${ticket.description}</p><p>Requested by: ${user?.name}</p><br/><a href="${process.env.NEXTAUTH_URL}/tickets/${ticket.id}">View Ticket</a>`
+    html: `<h3>New Service Desk Ticket</h3><p><strong>Category:</strong> ${ticket.category}</p><p><strong>Priority:</strong> ${ticket.priority}</p><p><strong>Description:</strong><br/>${ticket.description}</p><p>Requested by: ${author?.name || 'Unknown'}</p><br/><a href="${process.env.NEXTAUTH_URL}/tickets/${ticket.id}">View Ticket</a>`
   })
 
   revalidatePath('/tickets')
