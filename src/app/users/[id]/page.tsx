@@ -12,6 +12,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
       assets: { orderBy: { category: 'asc' } },
       accessPoints: { include: { accessPoint: true }, orderBy: { grantedAt: 'desc' } },
       userAccounts: { orderBy: { createdAt: 'desc' } },
+      m365Accounts: { orderBy: { email: 'asc' } },
       tickets: { orderBy: { updatedAt: 'desc' } },
       logs: { orderBy: { timestamp: 'desc' }, take: 20, include: { asset: true } },
     },
@@ -24,7 +25,11 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
     orderBy: [{ category: 'asc' }, { brandModel: 'asc' }],
   })
   const allAccessPoints = await prisma.accessPoint.findMany({ orderBy: { name: 'asc' } })
-  const grantedIds = user.accessPoints.map(ua => ua.accessPointId)
+  const availableM365Accounts = await prisma.m365Account.findMany({
+    where: { assignedUserId: null },
+    orderBy: { email: 'asc' }
+  })
+  const grantedIds = (user as any).accessPoints.map((ua: any) => ua.accessPointId)
 
   return (
     <div>
@@ -35,9 +40,10 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
         </Link>
       </div>
       <UserProfileClient
-        user={user}
+        user={user as any}
         stockAssets={stockAssets}
         allAccessPoints={allAccessPoints}
+        availableM365Accounts={availableM365Accounts}
         grantedIds={grantedIds}
       />
     </div>

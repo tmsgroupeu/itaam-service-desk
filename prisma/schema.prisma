@@ -25,6 +25,7 @@ model User {
   deskExtension    String?
   
   // Relations
+  m365Accounts     M365Account[]
   assets           Asset[]
   accessPoints     UserAccess[]
   accounts         Account[]    // NextAuth relation
@@ -106,6 +107,25 @@ model UserAccount {
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model M365Account {
+  id               String   @id @default(uuid())
+  email            String   @unique // User Principal Name
+  displayName      String
+  department       String?
+  licenses         String?
+  mobileNumber     String?
+  tenantName       String?  // Name of the tenant this export came from
+  status           String   @default("Active") // "Active", "Archived"
+  usageType        String?  // e.g. "Primary Device", "Teams Login", "Shared Mailbox"
+
+  // Relation to biological User
+  assignedUserId   String?
+  assignedUser     User?    @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model Ticket {

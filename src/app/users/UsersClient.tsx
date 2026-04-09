@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation'
 import { useTransition, useState } from 'react'
 import { createUser, updateUser, deleteUser } from '@/app/actions'
 import type { User } from '@prisma/client'
-import { ImportCSVModal } from './ImportCSVModal'
 
 const DEPARTMENTS = ['IT', 'Front Desk', 'Accounting', 'Technical', 'Purchasing & Crew', 'Sales & PR', 'Customer Support', 'Operations', 'European Navigation', 'Management', 'Greek Office']
 const LICENSES = ['M365 BP', 'M365 E3', 'M365 F3', 'Teams Phone', 'M365 Business Basic']
@@ -132,14 +131,12 @@ type UserRow = User & { assets: Asset[]; accessPoints: UserAccess[] }
 
 export function UsersClient({ users }: { users: UserRow[] }) {
   const [addOpen, setAddOpen] = useState(false)
-  const [importOpen, setImportOpen] = useState(false)
   const [editUser, setEditUser] = useState<User | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
 
   return (
     <>
       {addOpen && <UserModal onClose={() => setAddOpen(false)} />}
-      {importOpen && <ImportCSVModal onClose={() => setImportOpen(false)} />}
       {editUser && <UserModal user={editUser} onClose={() => setEditUser(null)} />}
       {deleteTarget && <DeleteModal user={deleteTarget} onClose={() => setDeleteTarget(null)} />}
 
@@ -147,7 +144,6 @@ export function UsersClient({ users }: { users: UserRow[] }) {
         <h1 className="page-title">User Directory</h1>
         <div className="btn-group">
           <button className="btn btn-secondary" onClick={() => alert('Entra ID sync will be enabled after Azure credentials are configured.')}>Sync Entra ID</button>
-          <button className="btn btn-secondary" onClick={() => setImportOpen(true)}>Import M365 CSV</button>
           <button className="btn btn-primary" onClick={() => setAddOpen(true)}>+ Add Employee</button>
         </div>
       </div>

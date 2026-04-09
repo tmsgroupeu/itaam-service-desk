@@ -395,63 +395,117 @@ export async function addTicketComment(ticketId: string, formData: FormData) {
 
 // ── BULK OPERATIONS ──────────────────────────
 
-export async function importUsersFromCSV(rows: Record<string, string>[]) {
-  let imported = 0
+export async function syncM365Accounts(rows: Record<string, string>[], tenantName?: string) {
+  let created = 0
+  let updated = 0
   let skipped = 0
 
   for (const row of rows) {
     const email = row['User principal name']?.trim() || row['User Principal Name']?.trim()
-    const name = row['Display name']?.trim() || row['Display Name']?.trim()
+    const displayName = row['Display name']?.trim() || row['Display Name']?.trim()
     
-    // Skip if invalid or a generic/service account like "info@", "sales@", "accounting@"
-    if (!email || !name) {
+    if (!email || !displayName) {
       skipped++
       continue
     }
 
-    // Skip well-known generic accounts if they look like system mapping instead of real users
-    // If the user wants them, they can manually add them later. But let's allow them for now unless they start with specific words
-    
-    // Extract other fields
     let department: string | undefined = row['Department']?.trim()
     if (!department) department = undefined
     
     let mobileNumber: string | undefined = row['Mobile Phone']?.trim()
     if (!mobileNumber) mobileNumber = undefined
 
-    // Example licenses column format: "Exchange Online (Plan 1)+Exchange Online Archiving for Exchange Online"
-    let license: string | undefined = row['Licenses']?.trim()
-    if (!license || license === 'Unlicensed') license = undefined
-    // We can clean up the license string to just be the first one, or "Unlicensed"
-    if (license?.includes('+')) {
-      license = license.split('+')[0]
-    }
+    let licenses: string | undefined = row['Licenses']?.trim()
+    if (!licenses || licenses === 'Unlicensed') licenses = undefined
 
-    // Check if user already exists
-    const existing = await prisma.user.findUnique({
+    const existing = await prisma.m365Account.findUnique({
       where: { email: email.toLowerCase() }
     })
 
     if (existing) {
-      // We could update them here, but for now we skip duplicates to be safe
-      skipped++
-      continue
-    }
+      const hasChanges = 
+        existing.displayName !== displayName ||
+        existing.department !== department ||
+        existing.licenses !== licenses ||
+        existing.mobileNumber !== mobileNumber ||
+        existing.status !== 'Active'
 
-    await prisma.user.create({
-      data: {
-        name,
-        email: email.toLowerCase(),
-        department,
-        mobileNumber,
-        license,
-        role: 'EMPLOYEE',
+      if (hasChanges) {
+        await prisma.m365Account.update({
+          where: { id: existing.id },
+          data: {
+            displayName,
+            department,
+            licenses,
+            mobileNumber,
+            status: 'Active',
+            tenantName: tenantName || existing.tenantName
+          }
+        })
+        updated++
+      } else {
+        skipped++
       }
-    })
-
-    imported++
+    } else {
+      await prisma.m365Account.create({
+        data: {
+          email: email.toLowerCase(),
+          displayName,
+          department,
+          licenses,
+          mobileNumber,
+          tenantName
+        }
+      })
+      created++
+    }
   }
 
-  revalidatePath('/users')
-  return { success: true, imported, skipped }
+  revalidatePath('/accounts')
+  return { success: true, created, updated, skipped }
+}
+
+export async function assignM365Account(accountId: string, userId: string, usageType?: string) {
+  await prisma.m365Account.update({
+    where: { id: accountId },
+    data: {
+      assignedUserId: userId,
+      usageType: usageType || null
+    }
+  })
+  revalidatePath('/accounts')
+  revalidatePath(`/users/${userId}`)
+  return { success: true }
+}
+
+export async function unassignM365Account(accountId: string) {
+  const account = await prisma.m365Account.findUnique({ where: { id: accountId } })
+  if (!account) throw new Error('Account not found')
+
+  await prisma.m365Account.update({
+    where: { id: accountId },
+    data: {
+      assignedUserId: null,
+      usageType: null
+    }
+  })
+  
+  revalidatePath('/accounts')
+  if (account.assignedUserId) {
+    revalidatePath(`/users/${account.assignedUserId}`)
+  }
+  return { success: true }
+}
+
+export async function updateM365AccountUsage(accountId: string, usageType: string) {
+  const account = await prisma.m365Account.findUnique({ where: { id: accountId } })
+  await prisma.m365Account.update({
+    where: { id: accountId },
+    data: { usageType }
+  })
+  revalidatePath('/accounts')
+  if (account?.assignedUserId) {
+    revalidatePath(`/users/${account.assignedUserId}`)
+  }
+  return { success: true }
 }

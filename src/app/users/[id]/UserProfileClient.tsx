@@ -6,6 +6,8 @@ import { updateUser, assignAsset, unassignAsset, swapDevice, grantAccess, revoke
 import type { User, Asset, AccessPoint, UserAccess, Log, UserAccount, Ticket } from '@prisma/client'
 import { AccountsSection } from './AccountsSection'
 import { TicketsSection } from './TicketsSection'
+import { M365AccountsSection } from './M365AccountsSection'
+import type { M365Account } from '@prisma/client'
 
 type FullUser = User & {
   assets: Asset[]
@@ -13,6 +15,7 @@ type FullUser = User & {
   userAccounts: UserAccount[]
   tickets: Ticket[]
   logs: (Log & { asset: Asset })[]
+  m365Accounts: M365Account[]
 }
 
 function statusBadge(status: string) {
@@ -29,10 +32,11 @@ function CloseIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 }
 
-export function UserProfileClient({ user, stockAssets, allAccessPoints, grantedIds }: {
+export function UserProfileClient({ user, stockAssets, allAccessPoints, availableM365Accounts, grantedIds }: {
   user: FullUser
   stockAssets: Asset[]
   allAccessPoints: AccessPoint[]
+  availableM365Accounts: M365Account[]
   grantedIds: string[]
 }) {
   const router = useRouter()
@@ -239,6 +243,7 @@ export function UserProfileClient({ user, stockAssets, allAccessPoints, grantedI
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0' }}>
         <TicketsSection userId={user.id} tickets={user.tickets} assets={user.assets} />
+        <M365AccountsSection userId={user.id} accounts={user.m365Accounts} availableAccounts={availableM365Accounts} />
         <AccountsSection userId={user.id} accounts={user.userAccounts} />
       </div>
 
