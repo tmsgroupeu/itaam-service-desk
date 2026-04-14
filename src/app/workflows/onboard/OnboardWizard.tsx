@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { completeOnboarding } from '@/app/actions'
 import type { User, Asset, AccessPoint, M365Account } from '@prisma/client'
+import { UserModal } from '@/app/users/UsersClient'
 
 const STEPS = ['Select Employee', 'Assign Hardware', 'Link Accounts', 'Grant Access', 'Confirm & Complete']
 
@@ -26,6 +27,7 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([])
   const [selectedAccess, setSelectedAccess] = useState<string[]>([])
   const [done, setDone] = useState(false)
+  const [showAddUser, setShowAddUser] = useState(false)
 
   const user = users.find(u => u.id === selectedUser)
 
@@ -58,6 +60,7 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
 
   return (
     <div>
+      {showAddUser && <UserModal onClose={() => setShowAddUser(false)} />}
       <div style={{ marginBottom: '1.5rem' }}>
         <h1 className="page-title">Employee Onboarding</h1>
         <p className="text-muted text-sm">Complete all steps to assign hardware and grant digital access to a new employee.</p>
@@ -81,10 +84,15 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
             <p className="text-sm text-muted" style={{ marginBottom: '1.5rem' }}>Choose an existing employee from the directory, or add a new one first.</p>
             <div className="form-group" style={{ maxWidth: '420px' }}>
               <label className="form-label">Employee</label>
-              <select className="form-select" value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
-                <option value="">— Select employee —</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.name} — {u.department ?? 'No dept'}</option>)}
-              </select>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <select className="form-select" value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
+                  <option value="">— Select employee —</option>
+                  {users.map(u => <option key={u.id} value={u.id}>{u.name} — {u.department ?? 'No dept'}</option>)}
+                </select>
+                <button className="btn btn-secondary" onClick={() => setShowAddUser(true)} title="Add New Employee">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+              </div>
             </div>
             {selectedUser && user && (
               <div className="alert alert-info" style={{ maxWidth: '420px' }}>

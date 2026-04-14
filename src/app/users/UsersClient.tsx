@@ -12,9 +12,9 @@ function CloseIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 }
 
-interface UserModalProps { user?: User; onClose: () => void }
+export interface UserModalProps { user?: User; onClose: () => void }
 
-function UserModal({ user, onClose }: UserModalProps) {
+export function UserModal({ user, onClose }: UserModalProps) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState('')

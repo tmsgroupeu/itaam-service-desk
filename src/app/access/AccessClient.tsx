@@ -9,7 +9,12 @@ type APRow = AccessPoint & { users: (UserAccess & { user: User })[] }
 
 function typeColor(t: string) {
   const m: Record<string, string> = { Mailbox: 'badge-purple', Printer: 'badge-yellow', SharePoint: 'badge-green', FileServer: 'badge-blue' }
-  return `badge ${m[t] ?? 'badge-gray'}`
+  if (m[t]) return `badge ${m[t]}`
+  
+  const colors = ['badge-blue', 'badge-green', 'badge-purple', 'badge-yellow', 'badge-gray']
+  let hash = 0
+  for (let i = 0; i < t.length; i++) hash = t.charCodeAt(i) + ((hash << 5) - hash)
+  return `badge ${colors[Math.abs(hash) % colors.length]}`
 }
 
 function CloseIcon() {
@@ -36,13 +41,16 @@ function AddAPModal({ onClose }: { onClose: () => void }) {
             </div>
             <div className="form-group">
               <label className="form-label">Type</label>
-              <select name="type" className="form-select">
-                <option value="Mailbox">Mailbox</option>
-                <option value="Printer">Printer</option>
-                <option value="SharePoint">SharePoint</option>
-                <option value="FileServer">File Server</option>
-                <option value="Other">Other</option>
-              </select>
+              <input name="type" className="form-input" list="typeList" required placeholder="e.g. Platform, VPN, Server, License" />
+              <datalist id="typeList">
+                <option value="Mailbox" />
+                <option value="Printer" />
+                <option value="SharePoint" />
+                <option value="FileServer" />
+                <option value="Platform Access" />
+                <option value="Local App" />
+                <option value="VPN" />
+              </datalist>
             </div>
             <div className="form-group">
               <label className="form-label">Description / IP / Path</label>

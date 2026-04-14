@@ -279,6 +279,13 @@ input, select, textarea { font-family: var(--font); }
   animation: slideUp 0.2s ease;
 }
 
+.modal form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .modal-lg { max-width: 700px; }
 
 .modal-header {

@@ -16,9 +16,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, user }) {
       if (session?.user) {
         session.user.id = user.id
-        // Add role to the session for middleware and UI to consume
         const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
         if (dbUser) {
+          if (dbUser.role !== 'ADMIN') {
+            const count = await prisma.user.count({ where: { role: 'ADMIN' } })
+            if (count === 0) {
+              await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } })
+              dbUser.role = 'ADMIN'
+            }
+          }
           ;(session.user as any).role = dbUser.role
         }
       }
