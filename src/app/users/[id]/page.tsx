@@ -29,8 +29,6 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
     where: { assignedUserId: null },
     orderBy: { email: 'asc' }
   })
-  const grantedIds = (user as any).accessPoints.map((ua: any) => ua.accessPointId)
-
   return (
     <div>
       <div style={{ marginBottom: '1.5rem' }}>
@@ -44,7 +42,6 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
         stockAssets={stockAssets}
         allAccessPoints={allAccessPoints}
         availableM365Accounts={availableM365Accounts}
-        grantedIds={grantedIds}
       />
     </div>
   )

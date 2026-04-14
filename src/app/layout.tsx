@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { NavLink } from '@/components/NavLink'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -35,18 +36,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <nav>
               <div className="nav-section">Core</div>
               {navItems.map(item => (
-                <Link key={item.href} href={item.href} className="nav-link">
+                <NavLink key={item.href} href={item.href} className="nav-link">
                   {item.icon}
                   {item.label}
-                </Link>
+                </NavLink>
               ))}
 
               <div className="nav-section">Workflows</div>
               {workflowItems.map(item => (
-                <Link key={item.href} href={item.href} className="nav-link">
+                <NavLink key={item.href} href={item.href} className="nav-link">
                   {item.icon}
                   {item.label}
-                </Link>
+                </NavLink>
               ))}
             </nav>
 
@@ -60,10 +61,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           <div className="main-content">
             <header className="header">
-              <div className="search-wrap">
+              <form action="/search" method="GET" className="search-wrap">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input className="search-input" type="search" placeholder="Search employees, assets, serials…" />
-              </div>
+                <input name="q" className="search-input" type="search" placeholder="Search employees, assets, serials…" />
+              </form>
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Link href="/workflows/onboard" className="btn btn-primary btn-sm">+ Onboard</Link>
               </div>

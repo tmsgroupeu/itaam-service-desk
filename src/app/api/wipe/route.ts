@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { auth } from '@/auth'
 
-export async function GET() {
+export async function GET(request: Request) {
+  const session = await auth()
+  if ((session?.user as any)?.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 })
+  }
+
   if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_WIPE) {
     return NextResponse.json({ error: 'Wipe disabled in production. Set ALLOW_WIPE=true in Vercel to use this.' }, { status: 403 })
   }

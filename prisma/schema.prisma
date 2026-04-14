@@ -76,8 +76,8 @@ model UserAccess {
   accessPointId    String
   grantedAt        DateTime     @default(now())
 
-  user             User         @relation(fields: [userId], references: [id])
-  accessPoint      AccessPoint  @relation(fields: [accessPointId], references: [id])
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessPoint      AccessPoint  @relation(fields: [accessPointId], references: [id], onDelete: Cascade)
   
   @@unique([userId, accessPointId])
 }
@@ -91,7 +91,7 @@ model Log {
   asset            Asset        @relation(fields: [assetId], references: [id])
   
   userId           String?      // If action was related to a user assignment
-  user             User?        @relation(fields: [userId], references: [id])
+  user             User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   timestamp        DateTime     @default(now())
 }
@@ -103,7 +103,7 @@ model UserAccount {
   username    String   // The actual username, email, or account ID
   notes       String?  // e.g. VPN profile name, license key reference, domain
 
-  user        User     @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -111,7 +111,7 @@ model UserAccount {
 
 model M365Account {
   id               String   @id @default(uuid())
-  email            String   @unique // User Principal Name
+  email            String   // User Principal Name
   displayName      String
   department       String?
   licenses         String?
@@ -126,6 +126,8 @@ model M365Account {
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@unique([email, tenantName])
 }
 
 model Ticket {
@@ -138,11 +140,11 @@ model Ticket {
   
   // Relations
   authorId    String   // The employee who has the issue
-  author      User     @relation(fields: [authorId], references: [id])
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   
   // Connected asset (optional, e.g., if ticket is about a broken laptop)
   assetId     String?
-  asset       Asset?   @relation(fields: [assetId], references: [id])
+  asset       Asset?   @relation(fields: [assetId], references: [id], onDelete: SetNull)
   
   comments    TicketComment[]
 
@@ -153,7 +155,7 @@ model Ticket {
 model TicketComment {
   id        String   @id @default(uuid())
   ticketId  String
-  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   
   body      String
   isAdmin   Boolean  @default(true) // Highlights comments made by IT

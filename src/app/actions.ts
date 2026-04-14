@@ -3,10 +3,17 @@
 import { revalidatePath } from 'next/cache'
 import { sendEmail } from '@/lib/mailer'
 import prisma from '@/lib/prisma'
+import { auth } from '@/auth'
+
+async function requireAdmin() {
+  const session = await auth()
+  if ((session?.user as any)?.role !== 'ADMIN') throw new Error('Unauthorized')
+}
 
 // ── USERS ──────────────────────────────────
 
 export async function createUser(formData: FormData) {
+  await requireAdmin()
   const name = (formData.get('name') as string).trim()
   if (!name) throw new Error('Name is required')
 
@@ -25,6 +32,7 @@ export async function createUser(formData: FormData) {
 }
 
 export async function updateUser(userId: string, formData: FormData) {
+  await requireAdmin()
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -42,14 +50,16 @@ export async function updateUser(userId: string, formData: FormData) {
 }
 
 export async function deleteUser(userId: string) {
+  await requireAdmin()
   await prisma.asset.updateMany({
     where: { assignedUserId: userId },
     data: { assignedUserId: null, status: 'In Stock' },
   })
-  await prisma.log.deleteMany({ where: { userId } })
-  await prisma.userAccess.deleteMany({ where: { userId } })
-  await prisma.userAccount.deleteMany({ where: { userId } })
-  await prisma.user.delete({ where: { id: userId } })
+  await prisma.m365Account.updateMany({
+    where: { assignedUserId: userId },
+    data: { assignedUserId: null, usageType: null },
+  })
+  await prisma.user.delete({ where: { id: userId } }) // Cascades to related userAccess, userAccounts, logs, tickets
   revalidatePath('/users')
   return { success: true }
 }
@@ -57,6 +67,7 @@ export async function deleteUser(userId: string) {
 // ── USER ACCOUNTS ───────────────────────────
 
 export async function createUserAccount(userId: string, formData: FormData) {
+  await requireAdmin()
   await prisma.userAccount.create({
     data: {
       userId,
@@ -70,6 +81,7 @@ export async function createUserAccount(userId: string, formData: FormData) {
 }
 
 export async function updateUserAccount(accountId: string, userId: string, formData: FormData) {
+  await requireAdmin()
   await prisma.userAccount.update({
     where: { id: accountId },
     data: {
@@ -83,6 +95,7 @@ export async function updateUserAccount(accountId: string, userId: string, formD
 }
 
 export async function deleteUserAccount(accountId: string, userId: string) {
+  await requireAdmin()
   await prisma.userAccount.delete({ where: { id: accountId } })
   revalidatePath(`/users/${userId}`)
   return { success: true }
@@ -92,6 +105,7 @@ export async function deleteUserAccount(accountId: string, userId: string) {
 // ── ASSETS ─────────────────────────────────
 
 export async function createAsset(formData: FormData) {
+  await requireAdmin()
   const quantityStr = formData.get('quantity') as string
   const quantity = quantityStr ? parseInt(quantityStr, 10) : 1
   const type = (formData.get('type') as string) || 'Serialized'
@@ -100,11 +114,11 @@ export async function createAsset(formData: FormData) {
   const serialImei = (formData.get('serialImei') as string) || null
   const conditionComment = (formData.get('conditionComment') as string) || null
 
-  const creates = Array.from({ length: Math.max(1, quantity) }).map(() => ({
+  const creates = Array.from({ length: Math.max(1, quantity) }).map((_, i) => ({
     type,
     category,
     brandModel,
-    serialImei: type === 'Bulk' ? null : serialImei, // Strip S/N for bulk
+    serialImei: (type === 'Bulk' || (quantity > 1 && i > 0)) ? null : serialImei, // Strip S/N for bulk or duplicated items
     conditionComment,
     status: 'In Stock',
   }))
@@ -118,6 +132,7 @@ export async function createAsset(formData: FormData) {
 }
 
 export async function updateAsset(assetId: string, formData: FormData) {
+  await requireAdmin()
   await prisma.asset.update({
     where: { id: assetId },
     data: {
@@ -133,6 +148,7 @@ export async function updateAsset(assetId: string, formData: FormData) {
 }
 
 export async function assignAsset(assetId: string, userId: string) {
+  await requireAdmin()
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new Error('User not found')
 
@@ -150,6 +166,7 @@ export async function assignAsset(assetId: string, userId: string) {
 }
 
 export async function unassignAsset(assetId: string, newStatus: string = 'In Stock') {
+  await requireAdmin()
   const asset = await prisma.asset.findUnique({ where: { id: assetId }, include: { assignedUser: true } })
   if (!asset) throw new Error('Asset not found')
 
@@ -172,8 +189,12 @@ export async function unassignAsset(assetId: string, newStatus: string = 'In Sto
 }
 
 export async function swapDevice(oldAssetId: string, newAssetId: string, userId: string) {
+  await requireAdmin()
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new Error('User not found')
+  
+  const newAsset = await prisma.asset.findUnique({ where: { id: newAssetId } })
+  if (!newAsset || newAsset.status !== 'In Stock') throw new Error('New device is not available in stock')
 
   await prisma.asset.update({ where: { id: oldAssetId }, data: { assignedUserId: null, status: 'Pending Return' } })
   await prisma.log.create({ data: { assetId: oldAssetId, userId, action: 'Pending Return', notes: `Device swap – returned by ${user.name}` } })
@@ -187,6 +208,7 @@ export async function swapDevice(oldAssetId: string, newAssetId: string, userId:
 }
 
 export async function updateAssetStatus(assetId: string, status: string) {
+  await requireAdmin()
   const asset = await prisma.asset.findUnique({ where: { id: assetId } })
   if (!asset) throw new Error('Not found')
   if (status !== 'In Stock' && status !== 'Broken' && status !== 'Retired' && status !== 'Pending Return' && status !== 'Assigned') throw new Error('Invalid status')
@@ -197,6 +219,7 @@ export async function updateAssetStatus(assetId: string, status: string) {
 }
 
 export async function deleteAsset(assetId: string) {
+  await requireAdmin()
   await prisma.log.deleteMany({ where: { assetId } })
   await prisma.asset.delete({ where: { id: assetId } })
   revalidatePath('/hardware')
@@ -206,6 +229,7 @@ export async function deleteAsset(assetId: string) {
 // ── ACCESS POINTS ───────────────────────────
 
 export async function createAccessPoint(formData: FormData) {
+  await requireAdmin()
   await prisma.accessPoint.create({
     data: {
       name: formData.get('name') as string,
@@ -218,6 +242,7 @@ export async function createAccessPoint(formData: FormData) {
 }
 
 export async function deleteAccessPoint(accessPointId: string) {
+  await requireAdmin()
   await prisma.userAccess.deleteMany({ where: { accessPointId } })
   await prisma.accessPoint.delete({ where: { id: accessPointId } })
   revalidatePath('/access')
@@ -227,6 +252,7 @@ export async function deleteAccessPoint(accessPointId: string) {
 // ── USER ACCESS ─────────────────────────────
 
 export async function grantAccess(userId: string, accessPointId: string) {
+  await requireAdmin()
   await prisma.userAccess.upsert({
     where: { userId_accessPointId: { userId, accessPointId } },
     create: { userId, accessPointId },
@@ -238,6 +264,7 @@ export async function grantAccess(userId: string, accessPointId: string) {
 }
 
 export async function revokeAccess(userId: string, accessPointId: string) {
+  await requireAdmin()
   await prisma.userAccess.deleteMany({
     where: { userId, accessPointId },
   })
@@ -249,6 +276,7 @@ export async function revokeAccess(userId: string, accessPointId: string) {
 // ── WORKFLOWS ───────────────────────────────
 
 export async function completeOnboarding(userId: string, assetIds: string[], accessPointIds: string[], m365AccountIds: string[] = []) {
+  await requireAdmin()
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new Error('User not found')
 
@@ -278,6 +306,7 @@ export async function completeOnboarding(userId: string, assetIds: string[], acc
 }
 
 export async function completeOffboarding(userId: string) {
+  await requireAdmin()
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { assets: true },
@@ -290,6 +319,8 @@ export async function completeOffboarding(userId: string) {
   }
 
   await prisma.userAccess.deleteMany({ where: { userId } })
+  await prisma.m365Account.updateMany({ where: { assignedUserId: userId }, data: { assignedUserId: null, usageType: null } })
+  await prisma.userAccount.deleteMany({ where: { userId } })
 
   revalidatePath('/users')
   revalidatePath(`/users/${userId}`)
@@ -324,7 +355,7 @@ export async function createTicket(formData: FormData) {
       data: {
         ticketId: ticket.id,
         body: initialComment,
-        isAdmin: true, // Mocking isAdmin while Auth is suspended
+        isAdmin: true,
       },
     })
   }
@@ -343,6 +374,7 @@ export async function createTicket(formData: FormData) {
 }
 
 export async function updateTicketStatus(ticketId: string, status: string) {
+  await requireAdmin()
   const ticket = await prisma.ticket.update({
     where: { id: ticketId },
     data: { status },
@@ -372,8 +404,9 @@ export async function updateTicketStatus(ticketId: string, status: string) {
 }
 
 export async function addTicketComment(ticketId: string, formData: FormData) {
+  const session = await auth()
+  const isAdmin = (session?.user as any)?.role === 'ADMIN'
   const body = (formData.get('body') as string).trim()
-  const isAdmin = formData.get('isAdmin') === 'true'
   if (!body) return { success: false }
 
   const comment = await prisma.ticketComment.create({
@@ -412,6 +445,7 @@ export async function addTicketComment(ticketId: string, formData: FormData) {
 // ── BULK OPERATIONS ──────────────────────────
 
 export async function syncM365Accounts(rows: Record<string, string>[], tenantName?: string) {
+  await requireAdmin()
   let created = 0
   let updated = 0
   let skipped = 0
@@ -434,8 +468,8 @@ export async function syncM365Accounts(rows: Record<string, string>[], tenantNam
     let licenses: string | undefined = row['Licenses']?.trim()
     if (!licenses || licenses === 'Unlicensed') licenses = undefined
 
-    const existing = await prisma.m365Account.findUnique({
-      where: { email: email.toLowerCase() }
+    const existing = await prisma.m365Account.findFirst({
+      where: { email: email.toLowerCase(), tenantName }
     })
 
     if (existing) {
@@ -482,6 +516,7 @@ export async function syncM365Accounts(rows: Record<string, string>[], tenantNam
 }
 
 export async function assignM365Account(accountId: string, userId: string, usageType?: string) {
+  await requireAdmin()
   await prisma.m365Account.update({
     where: { id: accountId },
     data: {
@@ -495,6 +530,7 @@ export async function assignM365Account(accountId: string, userId: string, usage
 }
 
 export async function unassignM365Account(accountId: string) {
+  await requireAdmin()
   const account = await prisma.m365Account.findUnique({ where: { id: accountId } })
   if (!account) throw new Error('Account not found')
 
@@ -514,6 +550,7 @@ export async function unassignM365Account(accountId: string) {
 }
 
 export async function updateM365AccountUsage(accountId: string, usageType: string) {
+  await requireAdmin()
   const account = await prisma.m365Account.findUnique({ where: { id: accountId } })
   await prisma.m365Account.update({
     where: { id: accountId },

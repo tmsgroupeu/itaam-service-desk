@@ -31,12 +31,11 @@ function CloseIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 }
 
-export function UserProfileClient({ user, stockAssets, allAccessPoints, availableM365Accounts, grantedIds }: {
+export function UserProfileClient({ user, stockAssets, allAccessPoints, availableM365Accounts }: {
   user: FullUser
   stockAssets: Asset[]
   allAccessPoints: AccessPoint[]
   availableM365Accounts: M365Account[]
-  grantedIds: string[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -200,7 +199,7 @@ export function UserProfileClient({ user, stockAssets, allAccessPoints, availabl
               <p className="text-sm text-muted" style={{ marginBottom: '1rem' }}>Toggle the checkboxes below to grant or revoke access. Changes apply instantly.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {allAccessPoints.map(ap => {
-                  const granted = grantedIds.includes(ap.id)
+                  const granted = user.accessPoints.some(ua => ua.accessPointId === ap.id)
                   return (
                     <label key={ap.id} className={`check-item ${granted ? 'checked' : ''}`}>
                       <input type="checkbox" defaultChecked={granted} onChange={e => handleGrantAccess(ap.id, e.target.checked)} />

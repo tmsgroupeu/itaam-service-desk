@@ -193,7 +193,7 @@ export function HardwareClient({ assets, users }: { assets: AssetRow[]; users: U
       <div className="page-header">
         <h1 className="page-title">Hardware Inventory</h1>
         <div className="btn-group">
-          <button className="btn btn-secondary" onClick={() => alert('CSV export coming soon.')}>Export CSV</button>
+          <button className="btn btn-secondary" disabled title="CSV export coming soon.">Export CSV</button>
           <button className="btn btn-primary" onClick={() => setAddOpen(true)}>+ Add Asset</button>
         </div>
       </div>

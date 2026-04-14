@@ -4,6 +4,7 @@ import { useTransition, useRef } from 'react'
 import { updateTicketStatus, addTicketComment } from '@/app/actions'
 import type { Ticket, TicketComment, User, Asset } from '@prisma/client'
 import Link from 'next/link'
+import { statusColor } from '@/lib/utils'
 
 type FullTicket = Ticket & {
   author: User
@@ -11,18 +12,7 @@ type FullTicket = Ticket & {
   comments: TicketComment[]
 }
 
-function statusColor(status: string) {
-  const m: Record<string, string> = {
-    Open: 'badge-yellow',
-    'In Progress': 'badge-blue',
-    'Waiting on User': 'badge-purple',
-    Resolved: 'badge-green',
-    Closed: 'badge-gray',
-  }
-  return `badge ${m[status] ?? 'badge-gray'}`
-}
-
-export function TicketDetailClient({ ticket }: { ticket: FullTicket }) {
+export function TicketDetailClient({ ticket, isPortalView = false }: { ticket: FullTicket, isPortalView?: boolean }) {
   const [pending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -45,9 +35,9 @@ export function TicketDetailClient({ ticket }: { ticket: FullTicket }) {
   return (
     <div style={{ maxWidth: '960px', margin: '0 auto', paddingBottom: '4rem' }}>
       <div style={{ marginBottom: '1.5rem' }}>
-        <Link href="/tickets" className="btn btn-ghost btn-sm" style={{ display: 'inline-flex', marginBottom: '1rem' }}>
+        <Link href={isPortalView ? "/portal" : "/tickets"} className="btn btn-ghost btn-sm" style={{ display: 'inline-flex', marginBottom: '1rem' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
-          Back to Service Desk
+          Back to {isPortalView ? 'Portal' : 'Service Desk'}
         </Link>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -62,22 +52,24 @@ export function TicketDetailClient({ ticket }: { ticket: FullTicket }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <span className="text-sm">Change Status:</span>
-            <select 
-              className="form-select" 
-              style={{ width: 'auto' }}
-              value={ticket.status}
-              disabled={pending}
-              onChange={e => handleStatusChange(e.target.value)}
-            >
-              <option value="Open">Open</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Waiting on User">Waiting on User</option>
-              <option value="Resolved">Resolved</option>
-              <option value="Closed">Closed</option>
-            </select>
-          </div>
+          {!isPortalView && (
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <span className="text-sm">Change Status:</span>
+              <select 
+                className="form-select" 
+                style={{ width: 'auto' }}
+                value={ticket.status}
+                disabled={pending}
+                onChange={e => handleStatusChange(e.target.value)}
+              >
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Waiting on User">Waiting on User</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </div>
+          )}
         </div>
       </div>
 

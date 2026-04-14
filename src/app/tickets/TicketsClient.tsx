@@ -3,38 +3,18 @@
 import { useState } from 'react'
 import type { Ticket, User, TicketComment } from '@prisma/client'
 import Link from 'next/link'
+import { statusColor, priorityStyle } from '@/lib/utils'
 
 type TicketRow = Ticket & { author: User; comments: TicketComment[] }
 
-function statusColor(status: string) {
-  const m: Record<string, string> = {
-    Open: 'badge-yellow',
-    'In Progress': 'badge-blue',
-    'Waiting on User': 'badge-purple',
-    Resolved: 'badge-green',
-    Closed: 'badge-gray',
-  }
-  return `badge ${m[status] ?? 'badge-gray'}`
-}
-
-function priorityColor(priority: string) {
-  const m: Record<string, string> = {
-    Low: 'color: var(--foreground-muted)',
-    Medium: 'color: var(--blue)',
-    High: 'color: var(--yellow)',
-    Critical: 'color: var(--red); font-weight: 600',
-  }
-  return m[priority] ?? ''
-}
-
 export function TicketsClient({ tickets }: { tickets: TicketRow[] }) {
-  const [statusFilter, setStatusFilter] = useState('Active')
+  const [statusFilter, setStatusFilter] = useState('Open')
 
   // Derived filter logic
   const filtered = tickets.filter(t => {
-    if (statusFilter === 'Active') return t.status !== 'Resolved' && t.status !== 'Closed'
     if (statusFilter === 'All') return true
-    return t.status === statusFilter
+    const filterVal = statusFilter === 'Waiting' ? 'Waiting on User' : statusFilter
+    return t.status === filterVal
   })
 
   return (
@@ -48,7 +28,7 @@ export function TicketsClient({ tickets }: { tickets: TicketRow[] }) {
       </div>
 
       <div className="tabs">
-        {['Active', 'All', 'Open', 'In Progress', 'Waiting on User', 'Resolved', 'Closed'].map(s => (
+        {['All', 'Open', 'In Progress', 'Waiting', 'Resolved', 'Closed'].map(s => (
           <button key={s} className={`tab ${statusFilter === s ? 'active' : ''}`} onClick={() => setStatusFilter(s)}>{s}</button>
         ))}
       </div>
@@ -71,7 +51,7 @@ export function TicketsClient({ tickets }: { tickets: TicketRow[] }) {
               <tr key={t.id}>
                 <td className="font-mono text-xs text-muted">...{t.id.slice(-6)}</td>
                 <td><span className={statusColor(t.status)}>{t.status}</span></td>
-                <td><span style={{ fontSize: '0.85rem', ...Object.fromEntries(priorityColor(t.priority).split(';').filter(Boolean).map(s => s.split(':').map(x=>x.trim()))) }}>{t.priority}</span></td>
+                <td><span style={{ fontSize: '0.85rem', ...priorityStyle(t.priority) }}>{t.priority}</span></td>
                 <td>
                   <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{t.title}</div>
                   <div className="text-xs text-muted">{t.category} • {t.comments.length} comments</div>
