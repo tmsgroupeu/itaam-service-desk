@@ -1,32 +1,39 @@
 import NextAuth from "next-auth"
-import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id"
-import { PrismaAdapter } from "@auth/prisma-adapter"
+import CredentialsProvider from "next-auth/providers/credentials"
 import prisma from "@/lib/prisma"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  session: { strategy: "jwt" },
   providers: [
-    MicrosoftEntraID({
-      clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
-      clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
-      issuer: process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER,
+    CredentialsProvider({
+      name: "Temp Bypass",
+      credentials: {
+        email: { label: "Email (Type anything)", type: "email", placeholder: "admin@test.com" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email) return null
+        let user = await prisma.user.findFirst({ where: { email: credentials.email as string } })
+        if (!user) {
+          user = await prisma.user.create({
+            data: { email: credentials.email as string, name: (credentials.email as string).split('@')[0], role: 'ADMIN' }
+          })
+        }
+        return { id: user.id, name: user.name, email: user.email, role: user.role }
+      }
     }),
   ],
   callbacks: {
-    async session({ session, user }) {
-      if (session?.user) {
-        session.user.id = user.id
-        const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
-        if (dbUser) {
-          if (dbUser.role !== 'ADMIN') {
-            const count = await prisma.user.count({ where: { role: 'ADMIN' } })
-            if (count === 0) {
-              await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } })
-              dbUser.role = 'ADMIN'
-            }
-          }
-          ;(session.user as any).role = dbUser.role
-        }
+    async jwt({ token, user }) {
+      if (user) {
+        token.sub = user.id
+        token.role = (user as any).role
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (session?.user && token) {
+        session.user.id = token.sub as string
+        ;(session.user as any).role = token.role as string
       }
       return session
     }

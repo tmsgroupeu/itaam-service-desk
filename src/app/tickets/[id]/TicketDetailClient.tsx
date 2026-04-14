@@ -12,7 +12,7 @@ type FullTicket = Ticket & {
   comments: TicketComment[]
 }
 
-export function TicketDetailClient({ ticket, isPortalView = false }: { ticket: FullTicket, isPortalView?: boolean }) {
+export function TicketDetailClient({ ticket, isPortalView = false, users = [] }: { ticket: FullTicket, isPortalView?: boolean, users?: { id: string, name: string, department: string | null }[] }) {
   const [pending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -102,6 +102,11 @@ export function TicketDetailClient({ ticket, isPortalView = false }: { ticket: F
                       <div className="text-sm text-muted font-mono" style={{ backgroundColor: 'var(--bg-secondary)', padding: '0.25rem 0.5rem', borderRadius: '4px', display: 'inline-block' }}>
                         {comment.body}
                       </div>
+                    ) : comment.body.startsWith('[Manager Review Requested:') ? (
+                      <div className="text-sm" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5, padding: '0.75rem', backgroundColor: 'var(--yellow-light, #FFF9C4)', borderLeft: '4px solid #FBC02D', borderRadius: '0 4px 4px 0', color: '#333' }}>
+                        <strong>🔔 {comment.body.split('\n\n')[0]}</strong>
+                        <div style={{ marginTop: '0.5rem' }}>{comment.body.split('\n\n').slice(1).join('\n\n')}</div>
+                      </div>
                     ) : (
                       <div className="text-sm" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                         {comment.body}
@@ -116,7 +121,7 @@ export function TicketDetailClient({ ticket, isPortalView = false }: { ticket: F
             <hr className="divider" style={{ margin: '1.5rem -1.5rem' }} />
 
             <form ref={formRef} onSubmit={handleAddComment}>
-              <div className="form-group">
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
                 <label className="form-label">Add Comment</label>
                 <textarea 
                   name="body" 
@@ -126,6 +131,19 @@ export function TicketDetailClient({ ticket, isPortalView = false }: { ticket: F
                   rows={4}
                 />
               </div>
+
+              {!isPortalView && (
+                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                  <label className="form-label text-sm">Notify / Request Review From (Optional)</label>
+                  <select name="mentionId" className="form-select" style={{ maxWidth: '400px' }}>
+                    <option value="">— No one —</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.department ?? 'No Dept'})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="submit" className="btn btn-primary" disabled={pending}>
                   {pending ? 'Posting...' : 'Post Comment'}

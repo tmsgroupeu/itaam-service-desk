@@ -5,9 +5,16 @@ import { sendEmail } from '@/lib/mailer'
 import prisma from '@/lib/prisma'
 import { auth } from '@/auth'
 
+import { redirect } from 'next/navigation'
+
 async function requireAdmin() {
   const session = await auth()
-  if ((session?.user as any)?.role !== 'ADMIN') throw new Error('Unauthorized')
+  if (!session?.user) {
+    redirect('/api/auth/signin?callbackUrl=/')
+  }
+  if ((session.user as any).role !== 'ADMIN') {
+    throw new Error('Unauthorized: You do not have Admin privileges')
+  }
 }
 
 // ── USERS ──────────────────────────────────
@@ -21,7 +28,6 @@ export async function createUser(formData: FormData) {
     data: {
       name,
       department: (formData.get('department') as string) || null,
-      license: (formData.get('license') as string) || null,
       mobileNumber: (formData.get('mobileNumber') as string) || null,
       deskExtension: (formData.get('deskExtension') as string) || null,
       airportExtension: (formData.get('airportExtension') as string) || null,
@@ -38,7 +44,6 @@ export async function updateUser(userId: string, formData: FormData) {
     data: {
       name: (formData.get('name') as string).trim(),
       department: (formData.get('department') as string) || null,
-      license: (formData.get('license') as string) || null,
       mobileNumber: (formData.get('mobileNumber') as string) || null,
       deskExtension: (formData.get('deskExtension') as string) || null,
       airportExtension: (formData.get('airportExtension') as string) || null,
@@ -165,6 +170,27 @@ export async function assignAsset(assetId: string, userId: string) {
   return { success: true }
 }
 
+export async function assignMultipleAssets(assetIds: string[], userId: string) {
+  await requireAdmin()
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) throw new Error('User not found')
+
+  for (const assetId of assetIds) {
+    await prisma.asset.update({
+      where: { id: assetId },
+      data: { assignedUserId: userId, status: 'Assigned' },
+    })
+    await prisma.log.create({
+      data: { assetId, userId, action: 'Assigned', notes: `Assigned to ${user.name} (Bulk Select)` },
+    })
+  }
+
+  revalidatePath('/hardware')
+  revalidatePath(`/users/${userId}`)
+  revalidatePath('/users')
+  return { success: true }
+}
+
 export async function unassignAsset(assetId: string, newStatus: string = 'In Stock') {
   await requireAdmin()
   const asset = await prisma.asset.findUnique({ where: { id: assetId }, include: { assignedUser: true } })
@@ -222,6 +248,34 @@ export async function deleteAsset(assetId: string) {
   await requireAdmin()
   await prisma.log.deleteMany({ where: { assetId } })
   await prisma.asset.delete({ where: { id: assetId } })
+  revalidatePath('/hardware')
+  return { success: true }
+}
+
+export async function addBulkQuantity(category: string, brandModel: string, quantityToAdd: number) {
+  await requireAdmin()
+  const creates = Array.from({ length: quantityToAdd }).map(() => ({
+    type: 'Bulk',
+    category,
+    brandModel,
+    status: 'In Stock',
+  }))
+  await prisma.asset.createMany({ data: creates })
+  revalidatePath('/hardware')
+  return { success: true }
+}
+
+export async function removeBulkQuantity(category: string, brandModel: string, quantityToRemove: number) {
+  await requireAdmin()
+  const inStockItems = await prisma.asset.findMany({
+    where: { type: 'Bulk', category, brandModel, status: 'In Stock' },
+    take: quantityToRemove,
+  })
+  if (inStockItems.length < quantityToRemove) throw new Error('Not enough In Stock items to remove')
+  
+  const idsToRemove = inStockItems.map(a => a.id)
+  await prisma.log.deleteMany({ where: { assetId: { in: idsToRemove } } })
+  await prisma.asset.deleteMany({ where: { id: { in: idsToRemove } } })
   revalidatePath('/hardware')
   return { success: true }
 }
@@ -406,13 +460,23 @@ export async function updateTicketStatus(ticketId: string, status: string) {
 export async function addTicketComment(ticketId: string, formData: FormData) {
   const session = await auth()
   const isAdmin = (session?.user as any)?.role === 'ADMIN'
-  const body = (formData.get('body') as string).trim()
+  const body = (formData.get('body') as string)?.trim()
   if (!body) return { success: false }
+
+  const mentionId = formData.get('mentionId') as string
+  let finalBody = body
+  let mentionedUser = null
+  if (mentionId) {
+    mentionedUser = await prisma.user.findUnique({ where: { id: mentionId } })
+    if (mentionedUser) {
+      finalBody = `[Manager Review Requested: @${mentionedUser.name}]\n\n${body}`
+    }
+  }
 
   const comment = await prisma.ticketComment.create({
     data: {
       ticketId,
-      body,
+      body: finalBody,
       isAdmin,
     },
   })

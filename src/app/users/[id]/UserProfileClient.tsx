@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useTransition, useState } from 'react'
-import { updateUser, assignAsset, unassignAsset, swapDevice, grantAccess, revokeAccess } from '@/app/actions'
+import { updateUser, assignAsset, unassignAsset, swapDevice, grantAccess, revokeAccess, assignMultipleAssets } from '@/app/actions'
 import type { User, Asset, AccessPoint, UserAccess, Log, UserAccount, Ticket } from '@prisma/client'
 import { TicketsSection } from './TicketsSection'
 import { UnifiedAccountsSection } from './UnifiedAccountsSection'
@@ -44,12 +44,10 @@ export function UserProfileClient({ user, stockAssets, allAccessPoints, availabl
   const [selectedSwap, setSelectedSwap] = useState('')
   const [accessOpen, setAccessOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
-  const [selectedAssign, setSelectedAssign] = useState('')
+  const [selectedAssignIds, setSelectedAssignIds] = useState<string[]>([])
   const initials = user.name.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()
 
   const DEPARTMENTS = ['IT', 'Front Desk', 'Accounting', 'Technical', 'Purchasing & Crew', 'Sales & PR', 'Customer Support', 'Operations', 'European Navigation', 'Management', 'Greek Office']
-  const LICENSES = ['M365 BP', 'M365 E3', 'M365 F3', 'Teams Phone', 'M365 Business Basic']
-
   const handleEditSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -78,8 +76,13 @@ export function UserProfileClient({ user, stockAssets, allAccessPoints, availabl
   }
 
   const handleAssignAsset = () => {
-    if (!selectedAssign) return
-    startTransition(async () => { await assignAsset(selectedAssign, user.id); router.refresh(); setAssignOpen(false); setSelectedAssign('') })
+    if (selectedAssignIds.length === 0) return
+    startTransition(async () => {
+      await assignMultipleAssets(selectedAssignIds, user.id)
+      router.refresh()
+      setAssignOpen(false)
+      setSelectedAssignIds([])
+    })
   }
 
   return (
@@ -101,13 +104,6 @@ export function UserProfileClient({ user, stockAssets, allAccessPoints, availabl
                     <select name="department" className="form-select" defaultValue={user.department ?? ''}>
                       <option value="">— Select —</option>
                       {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">License</label>
-                    <select name="license" className="form-select" defaultValue={user.license ?? ''}>
-                      <option value="">— Select —</option>
-                      {LICENSES.map(l => <option key={l} value={l}>{l}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
@@ -174,17 +170,35 @@ export function UserProfileClient({ user, stockAssets, allAccessPoints, availabl
           <div className="modal">
             <div className="modal-header"><span className="modal-title">Assign Asset to {user.name}</span><button className="modal-close" onClick={() => setAssignOpen(false)}><CloseIcon /></button></div>
             <div className="modal-body">
-              <div className="form-group">
-                <label className="form-label">Select Asset from Stock</label>
-                <select className="form-select" value={selectedAssign} onChange={e => setSelectedAssign(e.target.value)}>
-                  <option value="">— Select asset —</option>
-                  {stockAssets.map(a => <option key={a.id} value={a.id}>{a.category}: {a.brandModel} {a.serialImei ? `(S/N: ${a.serialImei})` : '(Bulk)'}</option>)}
-                </select>
+              <p className="text-sm text-muted" style={{ marginBottom: '1rem' }}>Select multiple pieces of equipment to assign them all at once.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                {stockAssets.length === 0 ? (
+                  <div className="text-sm text-muted">No items currently in stock.</div>
+                ) : stockAssets.map((a) => {
+                  const checked = selectedAssignIds.includes(a.id)
+                  return (
+                    <label key={a.id} className={`check-item ${checked ? 'checked' : ''}`}>
+                      <input 
+                        type="checkbox" 
+                        checked={checked} 
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedAssignIds(prev => [...prev, a.id])
+                          else setSelectedAssignIds(prev => prev.filter(id => id !== a.id))
+                        }} 
+                      />
+                      <div>
+                        <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{a.category}</div>
+                        <div className="text-xs text-muted">{a.brandModel} {a.serialImei && `— (S/N: ${a.serialImei})`}</div>
+                      </div>
+                      {a.type === 'Bulk' && <span className="badge badge-purple" style={{ marginLeft: 'auto' }}>Bulk Item</span>}
+                    </label>
+                  )
+                })}
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setAssignOpen(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleAssignAsset} disabled={!selectedAssign || pending}>{pending ? 'Assigning…' : 'Assign Asset'}</button>
+              <button className="btn btn-primary" onClick={handleAssignAsset} disabled={selectedAssignIds.length === 0 || pending}>{pending ? 'Assigning…' : `Assign Asset(s)`}</button>
             </div>
           </div>
         </div>
@@ -229,7 +243,6 @@ export function UserProfileClient({ user, stockAssets, allAccessPoints, availabl
           <div className="profile-meta">
             {user.deskExtension && <div className="profile-meta-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 3h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.6a16 16 0 0 0 6 6l1.27-.73a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 18v-.92z"/></svg>Ext. {user.deskExtension}</div>}
             {user.mobileNumber && <div className="profile-meta-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>{user.mobileNumber}</div>}
-            {user.license && <div className="profile-meta-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span className="badge badge-blue">{user.license}</span></div>}
           </div>
         </div>
         <div className="btn-group">

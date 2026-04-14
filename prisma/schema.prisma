@@ -19,7 +19,6 @@ model User {
   role             String       @default("EMPLOYEE") // "ADMIN" or "EMPLOYEE"
   
   department       String?
-  license          String?      // e.g., "M365 BP"
   mobileNumber     String?
   airportExtension String?
   deskExtension    String?

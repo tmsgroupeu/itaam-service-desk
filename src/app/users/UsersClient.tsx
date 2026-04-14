@@ -6,8 +6,6 @@ import { createUser, updateUser, deleteUser } from '@/app/actions'
 import type { User } from '@prisma/client'
 
 const DEPARTMENTS = ['IT', 'Front Desk', 'Accounting', 'Technical', 'Purchasing & Crew', 'Sales & PR', 'Customer Support', 'Operations', 'European Navigation', 'Management', 'Greek Office']
-const LICENSES = ['M365 BP', 'M365 E3', 'M365 F3', 'Teams Phone', 'M365 Business Basic']
-
 function CloseIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 }
@@ -55,13 +53,6 @@ export function UserModal({ user, onClose }: UserModalProps) {
                 <select name="department" className="form-select" defaultValue={user?.department ?? ''}>
                   <option value="">— Select —</option>
                   {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">M365 License</label>
-                <select name="license" className="form-select" defaultValue={user?.license ?? ''}>
-                  <option value="">— Select —</option>
-                  {LICENSES.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
               <div className="form-group">
@@ -155,7 +146,6 @@ export function UsersClient({ users }: { users: UserRow[] }) {
               <th>Employee</th>
               <th>Department</th>
               <th>Extension</th>
-              <th>License</th>
               <th>Hardware</th>
               <th>Access Points</th>
               <th>Actions</th>
@@ -177,7 +167,6 @@ export function UsersClient({ users }: { users: UserRow[] }) {
                 </td>
                 <td className="text-sm text-muted">{u.department ?? '—'}</td>
                 <td className="font-mono text-sm">{u.deskExtension ?? '—'}</td>
-                <td>{u.license ? <span className="badge badge-blue">{u.license}</span> : <span className="text-muted">—</span>}</td>
                 <td><span className="badge badge-gray">{u.assets.length} item{u.assets.length !== 1 ? 's' : ''}</span></td>
                 <td><span className="badge badge-gray">{u.accessPoints.length} point{u.accessPoints.length !== 1 ? 's' : ''}</span></td>
                 <td>

@@ -16,5 +16,10 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
 
   if (!ticket) notFound()
 
-  return <TicketDetailClient ticket={ticket} />
+  const allUsers = await prisma.user.findMany({
+    select: { id: true, name: true, department: true },
+    orderBy: { name: 'asc' }
+  })
+
+  return <TicketDetailClient ticket={ticket} users={allUsers} />
 }
