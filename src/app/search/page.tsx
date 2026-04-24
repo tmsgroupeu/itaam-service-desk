@@ -18,8 +18,7 @@ export default async function SearchResultsPage({ searchParams }: { searchParams
     )
   }
 
-  // Simple global search over Users and Assets
-  const [users, assets] = await Promise.all([
+  const [users, assets, m365Accounts, accessPoints] = await Promise.all([
     prisma.user.findMany({
       where: {
         OR: [
@@ -33,9 +32,28 @@ export default async function SearchResultsPage({ searchParams }: { searchParams
         OR: [
           { serialImei: { contains: query, mode: 'insensitive' } },
           { brandModel: { contains: query, mode: 'insensitive' } },
+          { category: { contains: query, mode: 'insensitive' } },
         ]
       },
       include: { assignedUser: true }
+    }),
+    prisma.m365Account.findMany({
+      where: {
+        OR: [
+          { email: { contains: query, mode: 'insensitive' } },
+          { displayName: { contains: query, mode: 'insensitive' } },
+        ]
+      },
+      include: { assignedUser: true }
+    }),
+    prisma.accessPoint.findMany({
+      where: {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+          { type: { contains: query, mode: 'insensitive' } },
+        ]
+      }
     })
   ])
 
@@ -70,12 +88,52 @@ export default async function SearchResultsPage({ searchParams }: { searchParams
                   <div className="text-sm text-muted">
                     {a.serialImei ? `S/N: ${a.serialImei} • ` : ''}
                     Status: <span className="badge badge-gray" style={{ display: 'inline-block' }}>{a.status}</span>
+                    {a.assignedUser && ` • Assigned to: ${a.assignedUser.name}`}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
             <div className="table-empty">No hardware found.</div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header"><h3 className="section-title">M365 Accounts ({m365Accounts.length})</h3></div>
+          {m365Accounts.length > 0 ? (
+            <div className="list-group">
+              {m365Accounts.map(a => (
+                <div key={a.id} style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>
+                  <div className="font-semibold">{a.displayName}</div>
+                  <div className="text-sm text-muted">
+                    {a.email} • 
+                    Status: <span className="badge badge-gray" style={{ display: 'inline-block' }}>{a.status}</span>
+                    {a.assignedUser ? ` • Assigned to: ${a.assignedUser.name}` : ' • Unassigned'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="table-empty">No M365 accounts found.</div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header"><h3 className="section-title">Access Rights ({accessPoints.length})</h3></div>
+          {accessPoints.length > 0 ? (
+            <div className="list-group">
+              {accessPoints.map(ap => (
+                <div key={ap.id} style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>
+                  <div className="font-semibold">{ap.name}</div>
+                  <div className="text-sm text-muted">
+                    Type: <span className="badge badge-gray" style={{ display: 'inline-block' }}>{ap.type}</span>
+                    {ap.description && ` • ${ap.description}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="table-empty">No access rights found.</div>
           )}
         </div>
       </div>

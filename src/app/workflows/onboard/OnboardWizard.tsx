@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { completeOnboarding } from '@/app/actions'
 import type { User, Asset, AccessPoint, M365Account } from '@prisma/client'
@@ -30,6 +30,26 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
   const [showAddUser, setShowAddUser] = useState(false)
 
   const user = users.find(u => u.id === selectedUser)
+
+  const groupedStockAssets = useMemo(() => {
+    const bulkMap: Record<string, { asset: Asset; ids: string[]; count: number }> = {}
+    const serialized: Asset[] = []
+
+    for (const a of stockAssets) {
+      if (a.type === 'Bulk') {
+        const key = `${a.category}-${a.brandModel}`
+        if (!bulkMap[key]) {
+          bulkMap[key] = { asset: a, ids: [a.id], count: 1 }
+        } else {
+          bulkMap[key].ids.push(a.id)
+          bulkMap[key].count++
+        }
+      } else {
+        serialized.push(a)
+      }
+    }
+    return { bulkMap, serialized }
+  }, [stockAssets])
 
   const toggleAsset = (id: string) => setSelectedAssets(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   const toggleAccount = (id: string) => setSelectedAccounts(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -109,18 +129,50 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
             <div className="section-title">Assign Hardware to {user?.name}</div>
             <p className="text-sm text-muted" style={{ marginBottom: '1.25rem' }}>Select equipment from stock to assign. {stockAssets.length === 0 && <strong>No items currently in stock.</strong>}</p>
             <div className="check-list">
-              {stockAssets.map(a => (
-                <label key={a.id} className={`check-item ${selectedAssets.includes(a.id) ? 'checked' : ''}`} onClick={() => toggleAsset(a.id)}>
-                  <input type="checkbox" readOnly checked={selectedAssets.includes(a.id)} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{a.category}: {a.brandModel}</div>
-                    {a.serialImei && <div className="font-mono text-xs text-muted">S/N: {a.serialImei}</div>}
-                    {a.conditionComment && <div className="text-xs text-muted">{a.conditionComment}</div>}
-                  </div>
-                  <span className={`badge ${a.type === 'Bulk' ? 'badge-purple' : 'badge-blue'}`}>{a.type}</span>
-                </label>
-              ))}
-              {stockAssets.length === 0 && <div className="empty-state" style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '2rem' }}><p>No assets in stock. Add assets via Hardware Inventory first.</p></div>}
+              {stockAssets.length === 0 ? (
+                <div className="empty-state" style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '2rem' }}>
+                  <p>No assets in stock. Add assets via Hardware Inventory first.</p>
+                </div>
+              ) : (
+                <>
+                  {Object.values(groupedStockAssets.bulkMap).map(group => {
+                    const a = group.asset
+                    const selectedId = selectedAssets.find(id => group.ids.includes(id))
+                    const isChecked = !!selectedId
+                    
+                    return (
+                      <label key={a.id} className={`check-item ${isChecked ? 'checked' : ''}`} onClick={(e) => {
+                        e.preventDefault()
+                        if (isChecked && selectedId) {
+                          setSelectedAssets(prev => prev.filter(x => x !== selectedId))
+                        } else {
+                          setSelectedAssets(prev => [...prev, group.ids[0]])
+                        }
+                      }}>
+                        <input type="checkbox" readOnly checked={isChecked} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{a.category}: {a.brandModel} <span className="text-muted">({group.count} in stock)</span></div>
+                        </div>
+                        <span className="badge badge-purple">Bulk Item</span>
+                      </label>
+                    )
+                  })}
+                  {groupedStockAssets.serialized.map(a => (
+                    <label key={a.id} className={`check-item ${selectedAssets.includes(a.id) ? 'checked' : ''}`} onClick={(e) => {
+                      e.preventDefault()
+                      toggleAsset(a.id)
+                    }}>
+                      <input type="checkbox" readOnly checked={selectedAssets.includes(a.id)} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{a.category}: {a.brandModel}</div>
+                        {a.serialImei && <div className="font-mono text-xs text-muted">S/N: {a.serialImei}</div>}
+                        {a.conditionComment && <div className="text-xs text-muted">{a.conditionComment}</div>}
+                      </div>
+                      <span className="badge badge-blue">{a.type}</span>
+                    </label>
+                  ))}
+                </>
+              )}
             </div>
             {selectedAssets.length > 0 && (
               <div className="alert alert-success" style={{ marginTop: '1rem' }}>

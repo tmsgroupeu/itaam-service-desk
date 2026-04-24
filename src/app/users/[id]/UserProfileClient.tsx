@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useTransition, useState } from 'react'
+import { useTransition, useState, useMemo } from 'react'
 import { updateUser, assignAsset, unassignAsset, swapDevice, grantAccess, revokeAccess, assignMultipleAssets } from '@/app/actions'
 import type { User, Asset, AccessPoint, UserAccess, Log, UserAccount, Ticket } from '@prisma/client'
 import { TicketsSection } from './TicketsSection'
@@ -46,6 +46,26 @@ export function UserProfileClient({ user, stockAssets, allAccessPoints, availabl
   const [assignOpen, setAssignOpen] = useState(false)
   const [selectedAssignIds, setSelectedAssignIds] = useState<string[]>([])
   const initials = user.name.split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()
+
+  const groupedStockAssets = useMemo(() => {
+    const bulkMap: Record<string, { asset: Asset; ids: string[]; count: number }> = {}
+    const serialized: Asset[] = []
+
+    for (const a of stockAssets) {
+      if (a.type === 'Bulk') {
+        const key = `${a.category}-${a.brandModel}`
+        if (!bulkMap[key]) {
+          bulkMap[key] = { asset: a, ids: [a.id], count: 1 }
+        } else {
+          bulkMap[key].ids.push(a.id)
+          bulkMap[key].count++
+        }
+      } else {
+        serialized.push(a)
+      }
+    }
+    return { bulkMap, serialized }
+  }, [stockAssets])
 
   const DEPARTMENTS = ['IT', 'Front Desk', 'Accounting', 'Technical', 'Purchasing & Crew', 'Sales & PR', 'Customer Support', 'Operations', 'European Navigation', 'Management', 'Greek Office']
   const handleEditSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -174,26 +194,54 @@ export function UserProfileClient({ user, stockAssets, allAccessPoints, availabl
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto', paddingRight: '0.5rem' }}>
                 {stockAssets.length === 0 ? (
                   <div className="text-sm text-muted">No items currently in stock.</div>
-                ) : stockAssets.map((a) => {
-                  const checked = selectedAssignIds.includes(a.id)
-                  return (
-                    <label key={a.id} className={`check-item ${checked ? 'checked' : ''}`}>
-                      <input 
-                        type="checkbox" 
-                        checked={checked} 
-                        onChange={(e) => {
-                          if (e.target.checked) setSelectedAssignIds(prev => [...prev, a.id])
-                          else setSelectedAssignIds(prev => prev.filter(id => id !== a.id))
-                        }} 
-                      />
-                      <div>
-                        <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{a.category}</div>
-                        <div className="text-xs text-muted">{a.brandModel} {a.serialImei && `— (S/N: ${a.serialImei})`}</div>
-                      </div>
-                      {a.type === 'Bulk' && <span className="badge badge-purple" style={{ marginLeft: 'auto' }}>Bulk Item</span>}
-                    </label>
-                  )
-                })}
+                ) : (
+                  <>
+                    {Object.values(groupedStockAssets.bulkMap).map((group) => {
+                      const a = group.asset
+                      const selectedId = selectedAssignIds.find(id => group.ids.includes(id))
+                      const isChecked = !!selectedId
+
+                      return (
+                        <label key={a.id} className={`check-item ${isChecked ? 'checked' : ''}`}>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedAssignIds(prev => [...prev, group.ids[0]])
+                              else setSelectedAssignIds(prev => prev.filter(id => id !== selectedId))
+                            }} 
+                          />
+                          <div>
+                            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                              {a.category} <span className="text-muted">({group.count} in stock)</span>
+                            </div>
+                            <div className="text-xs text-muted">{a.brandModel}</div>
+                          </div>
+                          <span className="badge badge-purple" style={{ marginLeft: 'auto' }}>Bulk Item</span>
+                        </label>
+                      )
+                    })}
+                    {groupedStockAssets.serialized.map((a) => {
+                      const checked = selectedAssignIds.includes(a.id)
+                      return (
+                        <label key={a.id} className={`check-item ${checked ? 'checked' : ''}`}>
+                          <input 
+                            type="checkbox" 
+                            checked={checked} 
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedAssignIds(prev => [...prev, a.id])
+                              else setSelectedAssignIds(prev => prev.filter(id => id !== a.id))
+                            }} 
+                          />
+                          <div>
+                            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{a.category}</div>
+                            <div className="text-xs text-muted">{a.brandModel} {a.serialImei && `— (S/N: ${a.serialImei})`}</div>
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </>
+                )}
               </div>
             </div>
             <div className="modal-footer">
