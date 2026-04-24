@@ -270,22 +270,23 @@ export function HardwareClient({ assets, users }: { assets: AssetRow[]; users: U
 
   // Perform grouping for Bulk assets to avoid showing 50 identical mice
   const groupedBulk: Record<string, any> = {}
-  const displayAssets: any[] = []
+  const serializedAssets: any[] = []
 
   filtered.forEach(a => {
     if (a.type === 'Bulk') {
       const gKey = a.category + '|' + a.brandModel
       if (!groupedBulk[gKey]) {
-        groupedBulk[gKey] = { groupKey: gKey, category: a.category, brandModel: a.brandModel, total: 0, assigned: 0, inStock: 0, sampleId: a.id }
-        displayAssets.push({ isGroup: true, ...groupedBulk[gKey] })
+        groupedBulk[gKey] = { isGroup: true, groupKey: gKey, category: a.category, brandModel: a.brandModel, total: 0, assigned: 0, inStock: 0, sampleId: a.id }
       }
       groupedBulk[gKey].total++
       if (a.status === 'Assigned') groupedBulk[gKey].assigned++
       else if (a.status === 'In Stock') groupedBulk[gKey].inStock++
     } else {
-      displayAssets.push({ isGroup: false, item: a })
+      serializedAssets.push({ isGroup: false, item: a })
     }
   })
+
+  const displayAssets = [...Object.values(groupedBulk), ...serializedAssets]
 
   // Sort groups alphabetically by category/model
   displayAssets.sort((a, b) => {

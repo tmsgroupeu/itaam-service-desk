@@ -491,6 +491,13 @@ export async function addTicketComment(ticketId: string, formData: FormData) {
          subject: `New response on ticket: ${ticket.title}`,
          html: `<p>Log in to view the response from IT Support.</p><p><strong>Response:</strong><br/>${body}</p><br/><a href="${process.env.NEXTAUTH_URL}/portal/tickets/${ticket.id}">View Ticket</a>`
        })
+       if (mentionedUser && mentionedUser.email) {
+         await sendEmail({
+           to: mentionedUser.email,
+           subject: `Manager Review Requested: ${ticket.title}`,
+           html: `<p>Hello ${mentionedUser.name},</p><p>IT Support has requested your review on a ticket from ${ticket.author.name}.</p><p><strong>Note:</strong><br/>${body}</p><br/><a href="${process.env.NEXTAUTH_URL}/tickets/${ticket.id}">View Ticket in Service Desk</a>`
+         })
+       }
     } else if (!isAdmin) {
        // Employee responded -> Email IT
        const adminEmail = process.env.TEST_ADMIN_EMAIL || 'admin@company.com'

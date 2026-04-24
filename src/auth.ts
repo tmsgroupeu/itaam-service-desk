@@ -1,10 +1,24 @@
 import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import Nodemailer from "next-auth/providers/nodemailer"
+import { PrismaAdapter } from "@auth/prisma-adapter"
 import prisma from "@/lib/prisma"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   providers: [
+    Nodemailer({
+      server: {
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT),
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      },
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    }),
     CredentialsProvider({
       name: "Temp Bypass",
       credentials: {
