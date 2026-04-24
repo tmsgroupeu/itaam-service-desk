@@ -3,10 +3,11 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import Nodemailer from "next-auth/providers/nodemailer"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import prisma from "@/lib/prisma"
+import { authConfig } from "./auth.config"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig,
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "jwt" },
   providers: [
     Nodemailer({
       server: {
@@ -46,21 +47,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return { id: user.id, name: user.name, email: user.email, role: user.role }
       }
     }),
-  ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.sub = user.id
-        token.role = (user as any).role
-      }
-      return token
-    },
-    async session({ session, token }) {
-      if (session?.user && token) {
-        session.user.id = token.sub as string
-        ;(session.user as any).role = token.role as string
-      }
-      return session
-    }
-  }
+  ]
 })
