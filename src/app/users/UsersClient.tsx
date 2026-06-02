@@ -1,11 +1,13 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useTransition, useState } from 'react'
+import { useTransition, useState, useMemo } from 'react'
+import Link from 'next/link'
 import { createUser, updateUser, deleteUser } from '@/app/actions'
 import type { User } from '@prisma/client'
 
 const DEPARTMENTS = ['IT', 'Front Desk', 'Accounting', 'Technical', 'Purchasing & Crew', 'Sales & PR', 'Customer Support', 'Operations', 'European Navigation', 'Management', 'Greek Office']
+
 function CloseIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 }
@@ -51,7 +53,7 @@ export function UserModal({ user, onClose }: UserModalProps) {
               <div className="form-group">
                 <label className="form-label">Department</label>
                 <select name="department" className="form-select" defaultValue={user?.department ?? ''}>
-                  <option value="">— Select —</option>
+                  <option value="">-- Select --</option>
                   {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
@@ -71,7 +73,7 @@ export function UserModal({ user, onClose }: UserModalProps) {
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={pending}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={pending}>{pending ? 'Saving…' : user ? 'Save Changes' : 'Create Employee'}</button>
+            <button type="submit" className="btn btn-primary" disabled={pending}>{pending ? 'Saving...' : user ? 'Save Changes' : 'Create Employee'}</button>
           </div>
         </form>
       </div>
@@ -108,26 +110,54 @@ function DeleteModal({ user, onClose }: DeleteModalProps) {
         </div>
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={pending}>Cancel</button>
-          <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={pending}>{pending ? 'Deleting…' : 'Delete Employee'}</button>
+          <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={pending}>{pending ? 'Deleting...' : 'Delete Employee'}</button>
         </div>
       </div>
     </div>
   )
 }
 
-// ── Page-level client shell ─────────────────────────────────────────────────
 import type { Asset, UserAccess } from '@prisma/client'
 
 type UserRow = User & { assets: Asset[]; accessPoints: UserAccess[] }
 
 export function UsersClient({ users }: { users: UserRow[] }) {
-  const [addOpen, setAddOpen] = useState(false)
   const [editUser, setEditUser] = useState<User | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
 
+  // Search & Filter States
+  const [search, setSearch] = useState('')
+  const [deptFilter, setDeptFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const itemsPerPage = 20
+
+  // Filtering users
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => {
+      const matchesSearch = !search || 
+        u.name.toLowerCase().includes(search.toLowerCase()) ||
+        (u.mobileNumber && u.mobileNumber.toLowerCase().includes(search.toLowerCase())) ||
+        (u.deskExtension && u.deskExtension.toLowerCase().includes(search.toLowerCase()))
+      
+      const matchesDept = !deptFilter || u.department === deptFilter
+
+      return matchesSearch && matchesDept
+    })
+  }, [users, search, deptFilter])
+
+  // Reset page when filters change
+  useMemo(() => {
+    setPage(1)
+  }, [search, deptFilter])
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage) || 1
+  const paginatedUsers = useMemo(() => {
+    return filteredUsers.slice((page - 1) * itemsPerPage, page * itemsPerPage)
+  }, [filteredUsers, page])
+
   return (
     <>
-      {addOpen && <UserModal onClose={() => setAddOpen(false)} />}
       {editUser && <UserModal user={editUser} onClose={() => setEditUser(null)} />}
       {deleteTarget && <DeleteModal user={deleteTarget} onClose={() => setDeleteTarget(null)} />}
 
@@ -135,8 +165,29 @@ export function UsersClient({ users }: { users: UserRow[] }) {
         <h1 className="page-title">User Directory</h1>
         <div className="btn-group">
           <button className="btn btn-secondary" onClick={() => alert('Entra ID sync will be enabled after Azure credentials are configured.')}>Sync Entra ID</button>
-          <button className="btn btn-primary" onClick={() => setAddOpen(true)}>+ Add Employee</button>
+          <Link href="/workflows/onboard" className="btn btn-primary">+ Onboard Employee</Link>
         </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        <input 
+          type="text" 
+          className="form-input" 
+          placeholder="Search by name, extension, mobile..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ maxWidth: '320px' }}
+        />
+        <select 
+          className="form-select"
+          value={deptFilter}
+          onChange={e => setDeptFilter(e.target.value)}
+          style={{ maxWidth: '240px' }}
+        >
+          <option value="">All Departments</option>
+          {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
       </div>
 
       <div className="card" style={{ overflow: 'hidden' }}>
@@ -152,7 +203,7 @@ export function UsersClient({ users }: { users: UserRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {users.map(u => (
+            {paginatedUsers.map(u => (
               <tr key={u.id}>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
@@ -165,8 +216,8 @@ export function UsersClient({ users }: { users: UserRow[] }) {
                     </div>
                   </div>
                 </td>
-                <td className="text-sm text-muted">{u.department ?? '—'}</td>
-                <td className="font-mono text-sm">{u.deskExtension ?? '—'}</td>
+                <td className="text-sm text-muted">{u.department ?? '-'}</td>
+                <td className="font-mono text-sm">{u.deskExtension ?? '-'}</td>
                 <td><span className="badge badge-gray">{u.assets.length} item{u.assets.length !== 1 ? 's' : ''}</span></td>
                 <td><span className="badge badge-gray">{u.accessPoints.length} point{u.accessPoints.length !== 1 ? 's' : ''}</span></td>
                 <td>
@@ -178,9 +229,40 @@ export function UsersClient({ users }: { users: UserRow[] }) {
                 </td>
               </tr>
             ))}
-            {users.length === 0 && <tr><td colSpan={7} className="table-empty">No employees found. Click <strong>Add Employee</strong> to get started.</td></tr>}
+            {paginatedUsers.length === 0 && (
+              <tr>
+                <td colSpan={6} className="table-empty">
+                  No employees found matching the filters.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
+
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderTop: '1px solid var(--border)' }}>
+            <div className="text-xs text-muted">
+              Showing {(page - 1) * itemsPerPage + 1} to {Math.min(page * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} employees
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => setPage(p => Math.max(1, p - 1))} 
+                disabled={page === 1}
+              >
+                Previous
+              </button>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
+                disabled={page === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )

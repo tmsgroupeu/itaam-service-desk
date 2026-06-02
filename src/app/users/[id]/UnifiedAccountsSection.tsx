@@ -34,6 +34,10 @@ export function UnifiedAccountsSection({ userId, m365Accounts, userAccounts, ava
   // Inline editing for M365
   const [editM365Id, setEditM365Id] = useState<string | null>(null)
 
+  // Search & Filter state for Account Linking
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedAccountId, setSelectedAccountId] = useState('')
+
   // Combined Accounts List
   const allAccounts = [
     ...m365Accounts.map(a => ({ type: 'm365' as const, id: a.id, data: a })),
@@ -46,10 +50,13 @@ export function UnifiedAccountsSection({ userId, m365Accounts, userAccounts, ava
     const fd = new FormData(e.currentTarget)
     const accountId = fd.get('accountId') as string
     const usageType = fd.get('usageType') as string
+    if (!accountId) return
     startTransition(async () => {
       await assignM365Account(accountId, userId, usageType)
       router.refresh()
       setAddMode(null)
+      setSearchQuery('')
+      setSelectedAccountId('')
     })
   }
 
@@ -95,29 +102,72 @@ export function UnifiedAccountsSection({ userId, m365Accounts, userAccounts, ava
       
       {/* ADD / EDIT M365 MODAL */}
       {addMode === 'm365' && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setAddMode(null)}>
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && (setAddMode(null), setSearchQuery(''), setSelectedAccountId(''))}>
           <div className="modal">
             <div className="modal-header">
               <span className="modal-title">Link Microsoft 365 Account</span>
-              <button className="modal-close" type="button" onClick={() => setAddMode(null)}><CloseIcon /></button>
+              <button className="modal-close" type="button" onClick={() => { setAddMode(null); setSearchQuery(''); setSelectedAccountId('') }}><CloseIcon /></button>
             </div>
             <form onSubmit={handleAssignM365}>
               <div className="modal-body">
                 <div className="form-group">
-                  <label className="form-label">Available Accounts Directory</label>
-                  <select name="accountId" className="form-select" required>
-                    <option value="">— Select Account —</option>
-                    {availableM365Accounts.map(a => <option key={a.id} value={a.id}>{a.displayName} ({a.email})</option>)}
-                  </select>
+                  <label className="form-label">Search Available Accounts</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Type name or email to filter..." 
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    style={{ marginBottom: '0.75rem' }}
+                  />
+
+                  {selectedAccountId && (
+                    <div className="alert alert-success" style={{ padding: '0.5rem 0.75rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+                      Selected: <strong>{availableM365Accounts.find(a => a.id === selectedAccountId)?.displayName}</strong>
+                    </div>
+                  )}
+
+                  <div className="check-list" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                    {availableM365Accounts.filter(a => 
+                      a.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      a.email.toLowerCase().includes(searchQuery.toLowerCase())
+                    ).map(a => {
+                      const isChecked = selectedAccountId === a.id
+                      return (
+                        <label 
+                          key={a.id} 
+                          className={`check-item ${isChecked ? 'checked' : ''}`}
+                          onClick={() => setSelectedAccountId(isChecked ? '' : a.id)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <input type="radio" readOnly checked={isChecked} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{a.displayName}</div>
+                            <div className="font-mono text-xs text-muted">{a.email}</div>
+                          </div>
+                        </label>
+                      )
+                    })}
+                    {availableM365Accounts.filter(a => 
+                      a.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      a.email.toLowerCase().includes(searchQuery.toLowerCase())
+                    ).length === 0 && (
+                      <div className="text-xs text-muted" style={{ padding: '1rem', textAlign: 'center' }}>
+                        No matching available accounts found.
+                      </div>
+                    )}
+                  </div>
+                  <input type="hidden" name="accountId" value={selectedAccountId} required />
                 </div>
+                
                 <div className="form-group">
                   <label className="form-label">Usage / Type (Optional)</label>
                   <input name="usageType" type="text" className="form-input" placeholder="e.g. Primary Email, Shared Sales Inbox" />
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setAddMode(null)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={pending}>{pending ? 'Linking...' : 'Link Account'}</button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setAddMode(null); setSearchQuery(''); setSelectedAccountId('') }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={pending || !selectedAccountId}>{pending ? 'Linking...' : 'Link Account'}</button>
               </div>
             </form>
           </div>
@@ -151,7 +201,7 @@ export function UnifiedAccountsSection({ userId, m365Accounts, userAccounts, ava
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => { setAddMode(null); setEditCustomAccount(null) }} disabled={pending}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={pending}>{pending ? 'Saving…' : 'Save Account'}</button>
+                <button type="submit" className="btn btn-primary" disabled={pending}>{pending ? 'Saving...' : 'Save Account'}</button>
               </div>
             </form>
           </div>
@@ -164,8 +214,8 @@ export function UnifiedAccountsSection({ userId, m365Accounts, userAccounts, ava
           <span className="badge badge-gray">{allAccounts.length}</span>
         </div>
         <div className="btn-group">
-          <button className="btn btn-secondary btn-sm" onClick={() => setAddMode('custom')}>+ Add Custom Account</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setAddMode('m365')}>+ Link M365 Account</button>
+          <button className="btn btn-secondary" onClick={() => setAddMode('custom')}>+ Add Custom Account</button>
+          <button className="btn btn-primary" onClick={() => setAddMode('m365')}>+ Link M365 Account</button>
         </div>
       </div>
 
@@ -217,7 +267,7 @@ export function UnifiedAccountsSection({ userId, m365Accounts, userAccounts, ava
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                           {acc.licenses.split(',').map((l: string) => <span key={l} className="badge badge-gray">{l.trim()}</span>)}
                         </div>
-                      ) : <span className="text-muted">—</span>}
+                      ) : <span className="text-muted">-</span>}
                     </td>
                     <td>
                       <button className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} onClick={() => handleUnassignM365(acc.id)} disabled={pending}>Unlink</button>
@@ -234,7 +284,7 @@ export function UnifiedAccountsSection({ userId, m365Accounts, userAccounts, ava
                         <div className="font-mono text-sm">{acc.username}</div>
                       </div>
                     </td>
-                    <td className="text-sm text-muted" style={{ maxWidth: '220px' }}>{acc.notes || '—'}</td>
+                    <td className="text-sm text-muted" style={{ maxWidth: '220px' }}>{acc.notes || '-'}</td>
                     <td className="text-xs text-muted">Created: {new Date(acc.createdAt).toLocaleDateString('en-GB')}</td>
                     <td>
                       <div className="action-bar">

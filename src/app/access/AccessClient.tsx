@@ -1,7 +1,7 @@
 'use client'
 
+import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { useTransition, useState } from 'react'
 import { createAccessPoint, deleteAccessPoint, grantAccess, revokeAccess } from '@/app/actions'
 import type { AccessPoint, User, UserAccess } from '@prisma/client'
 
@@ -59,7 +59,7 @@ function AddAPModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={pending}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={pending}>{pending ? 'Creating…' : 'Create Endpoint'}</button>
+            <button type="submit" className="btn btn-primary" disabled={pending}>{pending ? 'Creating...' : 'Create Endpoint'}</button>
           </div>
         </form>
       </div>
@@ -86,7 +86,7 @@ function AuditModal({ ap, allUsers, onClose }: { ap: APRow; allUsers: User[]; on
         <div className="modal-header">
           <div>
             <div className="modal-title">{ap.name}</div>
-            <div className="text-xs text-muted">{ap.type}{ap.description ? ` — ${ap.description}` : ''}</div>
+            <div className="text-xs text-muted">{ap.type}{ap.description ? ` - ${ap.description}` : ''}</div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <button className="btn btn-danger btn-sm" onClick={() => {
@@ -125,6 +125,20 @@ function AuditModal({ ap, allUsers, onClose }: { ap: APRow; allUsers: User[]; on
 export function AccessClient({ accessPoints, allUsers }: { accessPoints: APRow[]; allUsers: User[] }) {
   const [addOpen, setAddOpen] = useState(false)
   const [auditAP, setAuditAP] = useState<APRow | null>(null)
+  
+  // Search state
+  const [search, setSearch] = useState('')
+
+  // Filter access points
+  const filteredAccessPoints = useMemo(() => {
+    return accessPoints.filter(ap => {
+      if (!search) return true
+      const query = search.toLowerCase()
+      return ap.name.toLowerCase().includes(query) ||
+             ap.type.toLowerCase().includes(query) ||
+             (ap.description && ap.description.toLowerCase().includes(query))
+    })
+  }, [accessPoints, search])
 
   return (
     <>
@@ -136,15 +150,27 @@ export function AccessClient({ accessPoints, allUsers }: { accessPoints: APRow[]
         <button className="btn btn-primary" onClick={() => setAddOpen(true)}>+ Add Endpoint</button>
       </div>
 
+      {/* Search Bar */}
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <input 
+          type="text" 
+          className="form-input" 
+          placeholder="Search endpoints by name, type, description..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ maxWidth: '360px', margin: 0 }}
+        />
+      </div>
+
       <div className="card" style={{ overflow: 'hidden' }}>
         <table className="data-table">
           <thead><tr><th>Endpoint / Resource</th><th>Type</th><th>Description / IP</th><th>Users with Access</th><th>Actions</th></tr></thead>
           <tbody>
-            {accessPoints.map(ap => (
+            {filteredAccessPoints.map(ap => (
               <tr key={ap.id}>
                 <td style={{ fontWeight: 500 }}>{ap.name}</td>
                 <td><span className={typeColor(ap.type)}>{ap.type}</span></td>
-                <td className="text-sm text-muted">{ap.description ?? '—'}</td>
+                <td className="text-sm text-muted">{ap.description ?? '-'}</td>
                 <td>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
                     {ap.users.slice(0, 3).map(ua => (
@@ -164,7 +190,7 @@ export function AccessClient({ accessPoints, allUsers }: { accessPoints: APRow[]
                 </td>
               </tr>
             ))}
-            {accessPoints.length === 0 && <tr><td colSpan={5} className="table-empty">No access endpoints configured yet.</td></tr>}
+            {filteredAccessPoints.length === 0 && <tr><td colSpan={5} className="table-empty">No access endpoints found matching the search.</td></tr>}
           </tbody>
         </table>
       </div>

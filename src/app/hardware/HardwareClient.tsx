@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useTransition, useState } from 'react'
+import { useTransition, useState, useMemo } from 'react'
 import { createAsset, updateAsset, deleteAsset, assignAsset, unassignAsset, updateAssetStatus, addBulkQuantity, removeBulkQuantity } from '@/app/actions'
 import type { Asset, User } from '@prisma/client'
 
@@ -57,13 +57,13 @@ function AddEditModal({ asset, onClose }: AddEditModalProps) {
               <div className="form-group">
                 <label className="form-label">Category <span>*</span></label>
                 <select name="category" className="form-select" defaultValue={asset?.category ?? ''} required>
-                  <option value="">— Select —</option>
+                  <option value="">-- Select --</option>
                   {CATEGORIES.filter(c => type === 'Serialized' || ['Keyboard', 'Mouse', 'Headset', 'Cable'].includes(c)).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label className="form-label">Brand / Model <span>*</span></label>
-                <input name="brandModel" className="form-input" required defaultValue={asset?.brandModel} placeholder="e.g. ThinkBook 13s Intel Core i5 – 16GB – 512GB SSD" />
+                <input name="brandModel" className="form-input" required defaultValue={asset?.brandModel} placeholder="e.g. ThinkBook 13s Intel Core i5" />
               </div>
               {type === 'Serialized' && (
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -86,7 +86,7 @@ function AddEditModal({ asset, onClose }: AddEditModalProps) {
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={pending}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={pending}>{pending ? 'Saving…' : asset ? 'Save Changes' : 'Add Asset'}</button>
+            <button type="submit" className="btn btn-primary" disabled={pending}>{pending ? 'Saving...' : asset ? 'Save Changes' : 'Add Asset'}</button>
           </div>
         </form>
       </div>
@@ -143,10 +143,10 @@ function ManageModal({ asset, users, onClose }: ManageModalProps) {
             <div className="form-group">
               <label className="form-label">Assign to Employee</label>
               <select className="form-select" value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
-                <option value="">— Select employee —</option>
+                <option value="">-- Select employee --</option>
                 {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.department ?? 'No dept'})</option>)}
               </select>
-              <button className="btn btn-primary" style={{ marginTop: '0.5rem', width: '100%' }} disabled={!selectedUser || pending} onClick={handleAssign}>{pending ? 'Assigning…' : 'Assign to Employee'}</button>
+              <button className="btn btn-primary" style={{ marginTop: '0.5rem', width: '100%' }} disabled={!selectedUser || pending} onClick={handleAssign}>{pending ? 'Assigning...' : 'Assign to Employee'}</button>
             </div>
           )}
 
@@ -263,37 +263,74 @@ export function HardwareClient({ assets, users }: { assets: AssetRow[]; users: U
   const [editAsset, setEditAsset] = useState<AssetRow | null>(null)
   const [manageAsset, setManageAsset] = useState<AssetRow | null>(null)
   const [manageBulkGroup, setManageBulkGroup] = useState<any>(null)
+  
+  // Search & Filter States
   const [filter, setFilter] = useState('All')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const itemsPerPage = 25
 
   const statusFilters = ['All', 'Assigned', 'In Stock', 'Broken', 'Pending Return', 'Retired']
-  const filtered = filter === 'All' ? assets : assets.filter(a => a.status === filter)
 
-  // Perform grouping for Bulk assets to avoid showing 50 identical mice
-  const groupedBulk: Record<string, any> = {}
-  const serializedAssets: any[] = []
+  // Perform grouping inside useMemo
+  const displayAssets = useMemo(() => {
+    const filtered = filter === 'All' ? assets : assets.filter(a => a.status === filter)
+    const groupedBulk: Record<string, any> = {}
+    const serializedAssets: any[] = []
 
-  filtered.forEach(a => {
-    if (a.type === 'Bulk') {
-      const gKey = a.category + '|' + a.brandModel
-      if (!groupedBulk[gKey]) {
-        groupedBulk[gKey] = { isGroup: true, groupKey: gKey, category: a.category, brandModel: a.brandModel, total: 0, assigned: 0, inStock: 0, sampleId: a.id }
+    filtered.forEach(a => {
+      if (a.type === 'Bulk') {
+        const gKey = a.category + '|' + a.brandModel
+        if (!groupedBulk[gKey]) {
+          groupedBulk[gKey] = { isGroup: true, groupKey: gKey, category: a.category, brandModel: a.brandModel, total: 0, assigned: 0, inStock: 0, sampleId: a.id }
+        }
+        groupedBulk[gKey].total++
+        if (a.status === 'Assigned') groupedBulk[gKey].assigned++
+        else if (a.status === 'In Stock') groupedBulk[gKey].inStock++
+      } else {
+        serializedAssets.push({ isGroup: false, item: a })
       }
-      groupedBulk[gKey].total++
-      if (a.status === 'Assigned') groupedBulk[gKey].assigned++
-      else if (a.status === 'In Stock') groupedBulk[gKey].inStock++
-    } else {
-      serializedAssets.push({ isGroup: false, item: a })
-    }
-  })
+    })
 
-  const displayAssets = [...Object.values(groupedBulk), ...serializedAssets]
+    const list = [...Object.values(groupedBulk), ...serializedAssets]
 
-  // Sort groups alphabetically by category/model
-  displayAssets.sort((a, b) => {
-    const aStr = a.isGroup ? a.category + a.brandModel : a.item.category + a.item.brandModel
-    const bStr = b.isGroup ? b.category + b.brandModel : b.item.category + b.item.brandModel
-    return aStr.localeCompare(bStr)
-  })
+    // Sort groups alphabetically by category/model
+    list.sort((a, b) => {
+      const aStr = a.isGroup ? a.category + a.brandModel : a.item.category + a.item.brandModel
+      const bStr = b.isGroup ? b.category + b.brandModel : b.item.category + b.item.brandModel
+      return aStr.localeCompare(bStr)
+    })
+    return list
+  }, [assets, filter])
+
+  // Filter display assets by search input
+  const filteredDisplayAssets = useMemo(() => {
+    return displayAssets.filter(row => {
+      if (!search) return true
+      const query = search.toLowerCase()
+      if (row.isGroup) {
+        return row.category.toLowerCase().includes(query) ||
+               row.brandModel.toLowerCase().includes(query)
+      } else {
+        const a = row.item
+        return a.category.toLowerCase().includes(query) ||
+               a.brandModel.toLowerCase().includes(query) ||
+               (a.serialImei && a.serialImei.toLowerCase().includes(query)) ||
+               (a.assignedUser && a.assignedUser.name.toLowerCase().includes(query))
+      }
+    })
+  }, [displayAssets, search])
+
+  // Reset page when filters change
+  useMemo(() => {
+    setPage(1)
+  }, [filter, search])
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredDisplayAssets.length / itemsPerPage) || 1
+  const paginatedAssets = useMemo(() => {
+    return filteredDisplayAssets.slice((page - 1) * itemsPerPage, page * itemsPerPage)
+  }, [filteredDisplayAssets, page])
 
   return (
     <>
@@ -316,18 +353,30 @@ export function HardwareClient({ assets, users }: { assets: AssetRow[]; users: U
         ))}
       </div>
 
+      {/* Filter and Search Bar */}
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <input 
+          type="text" 
+          className="form-input" 
+          placeholder="Search by category, model, serial, user..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ maxWidth: '320px', margin: 0 }}
+        />
+      </div>
+
       <div className="card" style={{ overflow: 'hidden' }}>
         <table className="data-table">
           <thead><tr><th>Type</th><th>Category</th><th>Brand / Model</th><th>Serial / IMEI</th><th>Status</th><th>Assigned To</th><th>Actions</th></tr></thead>
           <tbody>
-            {displayAssets.map((row, idx) => {
+            {paginatedAssets.map((row, idx) => {
               if (row.isGroup) {
                 return (
                   <tr key={`group-${idx}`} style={{ backgroundColor: 'rgba(0,0,0,0.015)' }}>
                     <td><span className="badge badge-purple">Bulk</span></td>
                     <td style={{ fontWeight: 600 }}>{row.category}</td>
                     <td className="text-sm" style={{ fontWeight: 500 }}>{row.brandModel}</td>
-                    <td className="font-mono text-muted">—</td>
+                    <td className="font-mono text-muted">-</td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                         <span className="badge badge-blue">Stock: {row.inStock}</span>
@@ -347,9 +396,9 @@ export function HardwareClient({ assets, users }: { assets: AssetRow[]; users: U
                     <td><span className={`badge ${a.type === 'Serialized' ? 'badge-blue' : 'badge-gray'}`}>{a.type}</span></td>
                     <td style={{ fontWeight: 500 }}>{a.category}</td>
                     <td className="text-sm" style={{ maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.brandModel}</td>
-                    <td className="font-mono">{a.serialImei ?? '—'}</td>
+                    <td className="font-mono">{a.serialImei ?? '-'}</td>
                     <td><span className={statusBadge(a.status)}>{a.status}</span></td>
-                    <td className="text-sm">{a.assignedUser ? (<a href={`/users/${a.assignedUser.id}`} style={{ color: 'var(--accent)' }}>{a.assignedUser.name}</a>) : <span className="text-muted">—</span>}</td>
+                    <td className="text-sm">{a.assignedUser ? (<a href={`/users/${a.assignedUser.id}`} style={{ color: 'var(--accent)' }}>{a.assignedUser.name}</a>) : <span className="text-muted">-</span>}</td>
                     <td>
                       <div className="action-bar">
                         <button className="btn btn-secondary btn-sm" onClick={() => setEditAsset(a)}>Edit</button>
@@ -360,9 +409,34 @@ export function HardwareClient({ assets, users }: { assets: AssetRow[]; users: U
                 )
               }
             })}
-            {displayAssets.length === 0 && <tr><td colSpan={7} className="table-empty">No assets with status <strong>{filter}</strong>.</td></tr>}
+            {paginatedAssets.length === 0 && <tr><td colSpan={7} className="table-empty">No assets found matching the search.</td></tr>}
           </tbody>
         </table>
+
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderTop: '1px solid var(--border)' }}>
+            <div className="text-xs text-muted">
+              Showing {(page - 1) * itemsPerPage + 1} to {Math.min(page * itemsPerPage, filteredDisplayAssets.length)} of {filteredDisplayAssets.length} asset entries
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => setPage(p => Math.max(1, p - 1))} 
+                disabled={page === 1}
+              >
+                Previous
+              </button>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
+                disabled={page === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )
