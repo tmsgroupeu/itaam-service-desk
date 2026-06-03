@@ -13,7 +13,13 @@ export default async function Dashboard() {
   ])
 
   const byDept = await prisma.user.groupBy({ by: ['department'], _count: { _all: true }, orderBy: { _count: { department: 'desc' } } })
-  const byCategory = await prisma.asset.groupBy({ by: ['category'], _count: { _all: true }, where: { type: 'Serialized' }, orderBy: { _count: { category: 'desc' } } })
+  
+  // Breakdown of all assets by category
+  const allByCategory = await prisma.asset.groupBy({ by: ['category'], _count: { _all: true }, orderBy: { _count: { category: 'desc' } } })
+  
+  // Breakdown of IN STOCK assets by category
+  const inStockByCategory = await prisma.asset.groupBy({ by: ['category'], _count: { _all: true }, where: { status: 'In Stock' }, orderBy: { _count: { category: 'desc' } } })
+
   const recentLogs = await prisma.log.findMany({ take: 6, orderBy: { timestamp: 'desc' }, include: { asset: true, user: true } })
 
   return (
@@ -39,49 +45,53 @@ export default async function Dashboard() {
           <div className="stat-sub">of {totalAssets} total assets</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">In Stock</div>
+          <div className="stat-label">In Stock Total</div>
           <div className="stat-value">{inStock}</div>
-          <div className="stat-sub">Ready to assign</div>
+          <div className="stat-sub">Ready to deploy</div>
         </div>
         <div className="stat-card red">
           <div className="stat-label">Broken / Repair</div>
           <div className="stat-value" style={{ color: 'var(--red)' }}>{broken}</div>
           <div className="stat-sub">Require attention</div>
         </div>
-        <div className="stat-card purple">
-          <div className="stat-label">Access Endpoints</div>
-          <div className="stat-value" style={{ color: 'var(--purple)' }}>{accessPoints}</div>
-          <div className="stat-sub">Mailboxes, printers, shares</div>
-        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
+        {/* In Stock Breakdown */}
+        <div className="card card-p">
+          <div className="section-title">Available Stock (By Category)</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+            {inStockByCategory.length === 0 && <span className="text-muted text-sm">No items in stock.</span>}
+            {inStockByCategory.map(c => {
+              // Highlight if stock is getting low (< 5 items)
+              const isLow = c._count._all < 5;
+              const color = isLow ? 'var(--red)' : 'var(--accent)';
+              return (
+                <div key={c.category} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="text-sm" style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                    {c.category}
+                    {isLow && <span className="badge badge-red" style={{ fontSize: '0.65rem', padding: '0.125rem 0.375rem' }}>Low Stock</span>}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ width: `${Math.min(c._count._all * 4, 120)}px`, height: '6px', background: color, borderRadius: '3px', opacity: 0.8 }} />
+                    <span className="text-xs font-mono font-bold" style={{ color: isLow ? 'var(--red)' : 'var(--foreground)' }}>{c._count._all}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
         {/* Users by Dept */}
         <div className="card card-p">
-          <div className="section-title">Users by Department</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+          <div className="section-title">Employees by Dept</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
             {byDept.slice(0, 8).map(d => (
               <div key={d.department ?? 'Unknown'} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="text-sm">{d.department ?? 'Unassigned'}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ width: `${Math.min((d._count._all / userCount) * 120, 120)}px`, height: '6px', background: 'var(--accent)', borderRadius: '3px', opacity: 0.7 }} />
-                  <span className="text-xs text-muted">{d._count._all}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Assets by Category */}
-        <div className="card card-p">
-          <div className="section-title">Assets by Category</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-            {byCategory.map(c => (
-              <div key={c.category} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="text-sm">{c.category}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ width: `${Math.min((c._count._all / totalAssets) * 120, 120)}px`, height: '6px', background: 'var(--green)', borderRadius: '3px', opacity: 0.7 }} />
-                  <span className="text-xs text-muted">{c._count._all}</span>
+                  <div style={{ width: `${Math.min((d._count._all / (userCount || 1)) * 120, 120)}px`, height: '6px', background: 'var(--green)', borderRadius: '3px', opacity: 0.7 }} />
+                  <span className="text-xs text-muted font-mono">{d._count._all}</span>
                 </div>
               </div>
             ))}
@@ -112,6 +122,19 @@ export default async function Dashboard() {
         </div>
       </div>
 
+      {/* Total Inventory Breakdown */}
+      <div className="card card-p" style={{ marginBottom: '1.5rem' }}>
+        <div className="section-title">Total Inventory Pipeline (All Statuses)</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
+          {allByCategory.map(c => (
+            <div key={c.category} style={{ padding: '0.875rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+              <div className="text-sm text-muted">{c.category}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '0.25rem' }}>{c._count._all}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Recent Activity */}
       <div className="card card-p">
         <div className="section-title">Recent Activity Log</div>
@@ -125,7 +148,7 @@ export default async function Dashboard() {
                 {i < recentLogs.length - 1 && <div className="timeline-line" />}
                 <div className={`timeline-dot ${isAssign ? 'green' : isReturn ? 'yellow' : ''}`} />
                 <div className="timeline-content">
-                  <div className="timeline-action">{log.action} — <span style={{ color: 'var(--foreground-muted)' }}>{log.asset.category}: {log.asset.brandModel}</span></div>
+                  <div className="timeline-action">{log.action} ?" <span style={{ color: 'var(--foreground-muted)' }}>{log.asset.category}: {log.asset.brandModel}</span></div>
                   {log.notes && <div className="timeline-notes">{log.notes}</div>}
                   <div className="timeline-time">{new Date(log.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                 </div>
@@ -137,4 +160,3 @@ export default async function Dashboard() {
     </div>
   )
 }
-
