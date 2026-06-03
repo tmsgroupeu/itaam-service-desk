@@ -7,10 +7,15 @@ import type { User, Asset, AccessPoint, M365Account } from '@prisma/client'
 
 const STEPS = ['Employee Details', 'Accounts & Emails', 'Systems & Platforms', 'Equipment & Office Setup', 'Confirm & Complete']
 const DEPARTMENTS = ['IT', 'Front Desk', 'Accounting', 'Technical', 'Purchasing & Crew', 'Sales & PR', 'Customer Support', 'Operations', 'European Navigation', 'Management', 'Greek Office']
+const CATEGORIES = ['Laptop', 'Desktop', 'Monitor', 'Mobile', 'Phone Console', 'Printer', 'Keyboard', 'Mouse', 'Headset', 'Cable', 'Other']
 
 function typeColor(t: string) {
   const m: Record<string, string> = { Mailbox: 'badge-purple', Printer: 'badge-yellow', SharePoint: 'badge-green', FileServer: 'badge-blue' }
   return `badge ${m[t] ?? 'badge-gray'}`
+}
+
+function CloseIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 }
 
 export function OnboardWizard({ users, stockAssets, accessPoints, availableM365Accounts }: {
@@ -39,6 +44,17 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
   const [selectedAssets, setSelectedAssets] = useState<string[]>([])
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([])
   const [selectedAccess, setSelectedAccess] = useState<string[]>([])
+  
+  // On-the-fly Asset Creation State
+  const [newAssets, setNewAssets] = useState<Array<{
+    tempId: string
+    type: string
+    category: string
+    brandModel: string
+    serialImei?: string
+    conditionComment?: string
+  }>>([])
+  const [showAddAssetModal, setShowAddAssetModal] = useState(false)
   
   const [accountSearch, setAccountSearch] = useState('')
   const [done, setDone] = useState(false)
@@ -114,7 +130,15 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
           userId = res.userId
         }
 
-        await completeOnboarding(userId, selectedAssets, selectedAccess, selectedAccounts)
+        const formattedNewAssets = newAssets.map(a => ({
+          type: a.type,
+          category: a.category,
+          brandModel: a.brandModel,
+          serialImei: a.serialImei,
+          conditionComment: a.conditionComment
+        }))
+
+        await completeOnboarding(userId, selectedAssets, selectedAccess, selectedAccounts, formattedNewAssets)
         setSelectedUser(userId)
         setDone(true)
       } catch (err: any) {
@@ -149,6 +173,7 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
             setSelectedAssets([])
             setSelectedAccounts([])
             setSelectedAccess([])
+            setNewAssets([])
             setDone(false) 
           }}>Onboard Another Employee</button>
         </div>
@@ -401,14 +426,57 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
 
             {/* Hardware Section */}
             <div style={{ marginBottom: '2rem' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.75rem', color: 'var(--foreground)' }}>Physical Hardware Inventory</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--foreground)' }}>Physical Hardware Inventory</div>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={() => setShowAddAssetModal(true)}
+                >
+                  ➕ Create &amp; Assign New Asset
+                </button>
+              </div>
+
               <div className="check-list" style={{ maxHeight: '220px', overflowY: 'auto' }}>
-                {stockAssets.length === 0 ? (
+                {stockAssets.length === 0 && newAssets.length === 0 ? (
                   <div className="empty-state" style={{ padding: '1.5rem' }}>
-                    <p>No hardware in stock. Add assets via Inventory first.</p>
+                    <p>No hardware in stock. Add assets via Inventory, or click "Create &amp; Assign New Asset" above.</p>
                   </div>
                 ) : (
                   <>
+                    {/* Render newly added assets */}
+                    {newAssets.map(a => (
+                      <div 
+                        key={a.tempId} 
+                        className="check-item checked"
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <input type="checkbox" readOnly checked style={{ marginRight: '0.75rem' }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                              🆕 {a.category}: {a.brandModel}
+                            </div>
+                            {a.serialImei && <div className="font-mono text-xs text-muted">S/N: {a.serialImei}</div>}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span className="badge badge-green">New to Create</span>
+                          <button 
+                            type="button" 
+                            className="btn btn-danger btn-sm" 
+                            style={{ padding: '0.1rem 0.3rem', minWidth: 'unset' }}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setNewAssets(prev => prev.filter(x => x.tempId !== a.tempId))
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
                     {Object.values(groupedStockAssets.bulkMap).map(group => {
                       const a = group.asset
                       const selectedId = selectedAssets.find(id => group.ids.includes(id))
@@ -501,10 +569,17 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
 
               {/* Hardware assigned */}
               <div className="card card-p" style={{ border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
-                <div style={{ fontWeight: 600, fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--foreground-muted)', marginBottom: '0.5rem' }}>Physical Hardware ({selectedAssets.length} items)</div>
-                {selectedAssets.length === 0 ? <div className="text-sm text-muted">No equipment selected</div> : stockAssets.filter(a => selectedAssets.includes(a.id)).map(a => (
-                  <div key={a.id} className="text-sm" style={{ marginBottom: '0.25rem' }}>🔹 {a.category}: {a.brandModel}</div>
-                ))}
+                <div style={{ fontWeight: 600, fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--foreground-muted)', marginBottom: '0.5rem' }}>Physical Hardware ({selectedAssets.length + newAssets.length} items)</div>
+                {selectedAssets.length === 0 && newAssets.length === 0 ? <div className="text-sm text-muted">No equipment selected</div> : (
+                  <>
+                    {stockAssets.filter(a => selectedAssets.includes(a.id)).map(a => (
+                      <div key={a.id} className="text-sm" style={{ marginBottom: '0.25rem' }}>🔹 {a.category}: {a.brandModel}</div>
+                    ))}
+                    {newAssets.map(a => (
+                      <div key={a.tempId} className="text-sm" style={{ marginBottom: '0.25rem', color: 'var(--green)' }}>➕ [New] {a.category}: {a.brandModel}</div>
+                    ))}
+                  </>
+                )}
               </div>
 
               {/* Accounts & Access */}
@@ -563,6 +638,76 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
           </button>
         )}
       </div>
+
+      {/* On-the-fly Asset Modal */}
+      {showAddAssetModal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowAddAssetModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <span className="modal-title">Create &amp; Assign New Hardware</span>
+              <button className="modal-close" onClick={() => setShowAddAssetModal(false)}><CloseIcon /></button>
+            </div>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const type = fd.get('type') as string;
+              const category = fd.get('category') as string;
+              const brandModel = (fd.get('brandModel') as string).trim();
+              const serialImei = (fd.get('serialImei') as string || '').trim();
+              const conditionComment = (fd.get('conditionComment') as string || '').trim();
+
+              if (!category || !brandModel) return;
+
+              const tempAsset = {
+                tempId: Math.random().toString(36).substr(2, 9),
+                type,
+                category,
+                brandModel,
+                serialImei: type === 'Serialized' ? serialImei : undefined,
+                conditionComment: conditionComment || undefined
+              };
+
+              setNewAssets(prev => [...prev, tempAsset]);
+              setShowAddAssetModal(false);
+            }}>
+              <div className="modal-body">
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label">Tracking Type</label>
+                    <select name="type" className="form-select" defaultValue="Serialized">
+                      <option value="Serialized">Serialized (individual S/N)</option>
+                      <option value="Bulk">Bulk (no S/N tracked)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Category <span>*</span></label>
+                    <select name="category" className="form-select" required>
+                      <option value="">-- Select --</option>
+                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Brand / Model <span>*</span></label>
+                    <input name="brandModel" className="form-input" required placeholder="e.g. ThinkBook 13s Intel Core i5" />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Serial Number / IMEI (If Serialized)</label>
+                    <input name="serialImei" className="form-input" placeholder="e.g. 15682BMR3WLV9B7R62" />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Notes / Condition</label>
+                    <textarea name="conditionComment" className="form-textarea" placeholder="e.g. Brand new, boxed" rows={2} />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAddAssetModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Add Asset</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

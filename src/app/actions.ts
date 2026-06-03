@@ -329,7 +329,19 @@ export async function revokeAccess(userId: string, accessPointId: string) {
 
 // ── WORKFLOWS ───────────────────────────────
 
-export async function completeOnboarding(userId: string, assetIds: string[], accessPointIds: string[], m365AccountIds: string[] = []) {
+export async function completeOnboarding(
+  userId: string, 
+  assetIds: string[], 
+  accessPointIds: string[], 
+  m365AccountIds: string[] = [],
+  newAssetsToCreate: Array<{
+    type: string
+    category: string
+    brandModel: string
+    serialImei?: string
+    conditionComment?: string
+  }> = []
+) {
   await requireAdmin()
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new Error('User not found')
@@ -337,6 +349,28 @@ export async function completeOnboarding(userId: string, assetIds: string[], acc
   for (const assetId of assetIds) {
     await prisma.asset.update({ where: { id: assetId }, data: { assignedUserId: userId, status: 'Assigned' } })
     await prisma.log.create({ data: { assetId, userId, action: 'Assigned (Onboarding)', notes: `Onboarding: assigned to ${user.name}` } })
+  }
+
+  for (const newAsset of newAssetsToCreate) {
+    const created = await prisma.asset.create({
+      data: {
+        type: newAsset.type,
+        category: newAsset.category,
+        brandModel: newAsset.brandModel,
+        serialImei: newAsset.serialImei || null,
+        status: 'Assigned',
+        assignedUserId: userId,
+        conditionComment: newAsset.conditionComment || null,
+      }
+    })
+    await prisma.log.create({
+      data: {
+        assetId: created.id,
+        userId,
+        action: 'Assigned (Onboarding - New Asset)',
+        notes: `Onboarding: created new asset and assigned to ${user.name}`
+      }
+    })
   }
 
   for (const accessPointId of accessPointIds) {

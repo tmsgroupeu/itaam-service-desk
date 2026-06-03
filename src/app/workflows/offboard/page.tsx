@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import prisma from '@/lib/prisma'
 import { OffboardChecklist } from './OffboardChecklist'
 
@@ -11,3 +12,4 @@ export default async function OffboardPage() {
   })
   return <OffboardChecklist users={users} />
 }
+

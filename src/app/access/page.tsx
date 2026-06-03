@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import prisma from '@/lib/prisma'
 import { AccessClient } from './AccessClient'
 
@@ -8,3 +9,4 @@ export default async function AccessPage() {
   ])
   return <AccessClient accessPoints={accessPoints} allUsers={allUsers} />
 }
+

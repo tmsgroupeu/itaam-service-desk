@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import prisma from '@/lib/prisma'
 import { OnboardWizard } from './OnboardWizard'
 
@@ -10,3 +11,4 @@ export default async function OnboardPage() {
   ])
   return <OnboardWizard users={users} stockAssets={stockAssets} accessPoints={accessPoints} availableM365Accounts={availableM365Accounts} />
 }
+

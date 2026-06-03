@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import prisma from '@/lib/prisma'
 import { AccountsClient } from './AccountsClient'
 
@@ -9,3 +10,4 @@ export default async function AccountsPage() {
 
   return <AccountsClient accounts={accounts} />
 }
+
