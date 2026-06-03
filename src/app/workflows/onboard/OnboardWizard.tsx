@@ -347,8 +347,7 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
                       key={a.id} 
                       className={`check-item ${isChecked ? 'checked' : ''}`} 
                       onClick={() => {
-                        // Limit to single primary M365 account for simplicity
-                        setSelectedAccounts(isChecked ? [] : [a.id])
+                        toggleAccount(a.id)
                       }}
                       style={{ cursor: 'pointer' }}
                     >
