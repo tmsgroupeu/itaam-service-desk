@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import type { M365Account, User } from '@prisma/client'
 import { ImportCSVModal } from './ImportCSVModal'
 
-type AccountRow = M365Account & { assignedUser: User | null }
+type AccountRow = M365Account & { assignedUsers: User[] }
 
 export function AccountsClient({ accounts }: { accounts: AccountRow[] }) {
   const [importOpen, setImportOpen] = useState(false)
@@ -23,8 +23,8 @@ export function AccountsClient({ accounts }: { accounts: AccountRow[] }) {
     return accounts.filter(a => {
       if (filterTenant && a.tenantName !== filterTenant) return false
       
-      if (assignFilter === 'Assigned' && !a.assignedUserId) return false
-      if (assignFilter === 'Unassigned' && a.assignedUserId) return false
+      if (assignFilter === 'Assigned' && (!a.assignedUsers || a.assignedUsers.length === 0)) return false
+      if (assignFilter === 'Unassigned' && a.assignedUsers && a.assignedUsers.length > 0) return false
 
       if (search) {
         const query = search.toLowerCase()
@@ -112,10 +112,14 @@ export function AccountsClient({ accounts }: { accounts: AccountRow[] }) {
                   ) : <span className="text-muted">-</span>}
                 </td>
                 <td>
-                  {a.assignedUser ? (
-                    <a href={`/users/${a.assignedUser.id}`} className="badge badge-green" style={{ textDecoration: 'none' }}>
-                      Assigned: {a.assignedUser.name}
-                    </a>
+                  {a.assignedUsers && a.assignedUsers.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {a.assignedUsers.map(u => (
+                        <a key={u.id} href={`/users/${u.id}`} className="badge badge-green" style={{ textDecoration: 'none' }}>
+                          {u.name}
+                        </a>
+                      ))}
+                    </div>
                   ) : (
                     <span className="badge badge-yellow">Unassigned</span>
                   )}

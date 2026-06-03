@@ -4,7 +4,7 @@ import { AccountsClient } from './AccountsClient'
 
 export default async function AccountsPage() {
   const accounts = await prisma.m365Account.findMany({
-    include: { assignedUser: true },
+    include: { assignedUsers: true },
     orderBy: { displayName: 'asc' },
   })
 

@@ -22,7 +22,7 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
   users: User[]
   stockAssets: Asset[]
   accessPoints: AccessPoint[]
-  availableM365Accounts: M365Account[]
+  availableM365Accounts: Array<M365Account & { assignedUsers: User[] }>
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -354,7 +354,14 @@ export function OnboardWizard({ users, stockAssets, accessPoints, availableM365A
                       <input type="checkbox" readOnly checked={isChecked} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{a.displayName}</div>
-                        <div className="font-mono text-xs text-muted">{a.email}</div>
+                        <div className="font-mono text-xs text-muted">
+                          {a.email}
+                          {a.assignedUsers && a.assignedUsers.length > 0 && (
+                            <span style={{ color: 'var(--green)', marginLeft: '0.5rem', fontWeight: 600 }}>
+                              (Shared: {a.assignedUsers.map(u => u.name.split(' ')[0]).join(', ')})
+                            </span>
+                          )}
+                        </div>
                       </div>
                       {a.licenses && <span className="badge badge-purple">{a.licenses.split(',')[0]}</span>}
                     </label>

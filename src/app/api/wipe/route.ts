@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   try {
     // Unassign assets and M365 accounts first
     await prisma.asset.updateMany({ data: { assignedUserId: null, status: 'In Stock' } })
-    await prisma.m365Account.updateMany({ data: { assignedUserId: null, usageType: null } })
+    await prisma.m365Account.updateMany({ data: { usageType: null } })
     
     // Delete dependent rows
     await prisma.ticketComment.deleteMany()

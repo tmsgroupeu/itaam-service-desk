@@ -26,7 +26,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
   })
   const allAccessPoints = await prisma.accessPoint.findMany({ orderBy: { name: 'asc' } })
   const availableM365Accounts = await prisma.m365Account.findMany({
-    where: { assignedUserId: null },
+    where: { NOT: { assignedUsers: { some: { id } } } },
     orderBy: { email: 'asc' }
   })
   return (

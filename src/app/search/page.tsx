@@ -44,7 +44,7 @@ export default async function SearchResultsPage({ searchParams }: { searchParams
           { displayName: { contains: query, mode: 'insensitive' } },
         ]
       },
-      include: { assignedUser: true }
+      include: { assignedUsers: true }
     }),
     prisma.accessPoint.findMany({
       where: {
@@ -139,8 +139,16 @@ export default async function SearchResultsPage({ searchParams }: { searchParams
                     <span className="badge badge-gray">{a.status}</span>
                   </div>
                   <div className="text-sm text-muted font-mono" style={{ marginBottom: '0.5rem' }}>{a.email}</div>
-                  {a.assignedUser ? (
-                    <div className="text-sm text-muted">Assigned to: <Link href={`/users/${a.assignedUser.id}`} style={{ color: 'var(--accent)' }}>{a.assignedUser.name}</Link></div>
+                  {a.assignedUsers && a.assignedUsers.length > 0 ? (
+                    <div className="text-sm text-muted">
+                      Assigned to: {' '}
+                      {a.assignedUsers.map((u, i) => (
+                        <span key={u.id}>
+                          {i > 0 && ', '}
+                          <Link href={`/users/${u.id}`} style={{ color: 'var(--accent)' }}>{u.name}</Link>
+                        </span>
+                      ))}
+                    </div>
                   ) : (
                     <div className="text-sm text-muted" style={{ fontStyle: 'italic' }}>Unassigned</div>
                   )}

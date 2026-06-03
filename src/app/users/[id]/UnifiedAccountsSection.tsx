@@ -63,7 +63,7 @@ export function UnifiedAccountsSection({ userId, m365Accounts, userAccounts, ava
   const handleUnassignM365 = (accountId: string) => {
     if (!confirm('Unlink this M365 Account from the user?')) return
     startTransition(async () => {
-      await unassignM365Account(accountId)
+      await unassignM365Account(accountId, userId)
       router.refresh()
     })
   }

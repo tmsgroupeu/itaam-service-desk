@@ -60,10 +60,7 @@ export async function deleteUser(userId: string) {
     where: { assignedUserId: userId },
     data: { assignedUserId: null, status: 'In Stock' },
   })
-  await prisma.m365Account.updateMany({
-    where: { assignedUserId: userId },
-    data: { assignedUserId: null, usageType: null },
-  })
+
   await prisma.user.delete({ where: { id: userId } }) // Cascades to related userAccess, userAccounts, logs, tickets
   revalidatePath('/users')
   return { success: true }
@@ -382,7 +379,10 @@ export async function completeOnboarding(
   }
 
   for (const accountId of m365AccountIds) {
-    await prisma.m365Account.update({ where: { id: accountId }, data: { assignedUserId: userId } })
+    await prisma.m365Account.update({
+      where: { id: accountId },
+      data: { assignedUsers: { connect: { id: userId } } }
+    })
   }
 
   revalidatePath('/users')
@@ -407,7 +407,10 @@ export async function completeOffboarding(userId: string) {
   }
 
   await prisma.userAccess.deleteMany({ where: { userId } })
-  await prisma.m365Account.updateMany({ where: { assignedUserId: userId }, data: { assignedUserId: null, usageType: null } })
+  await prisma.user.update({
+    where: { id: userId },
+    data: { m365Accounts: { set: [] } }
+  })
   await prisma.userAccount.deleteMany({ where: { userId } })
 
   revalidatePath('/users')
@@ -625,7 +628,7 @@ export async function assignM365Account(accountId: string, userId: string, usage
   await prisma.m365Account.update({
     where: { id: accountId },
     data: {
-      assignedUserId: userId,
+      assignedUsers: { connect: { id: userId } },
       usageType: usageType || null
     }
   })
@@ -634,7 +637,7 @@ export async function assignM365Account(accountId: string, userId: string, usage
   return { success: true }
 }
 
-export async function unassignM365Account(accountId: string) {
+export async function unassignM365Account(accountId: string, userId: string) {
   await requireAdmin()
   const account = await prisma.m365Account.findUnique({ where: { id: accountId } })
   if (!account) throw new Error('Account not found')
@@ -642,28 +645,30 @@ export async function unassignM365Account(accountId: string) {
   await prisma.m365Account.update({
     where: { id: accountId },
     data: {
-      assignedUserId: null,
-      usageType: null
+      assignedUsers: { disconnect: { id: userId } }
     }
   })
   
   revalidatePath('/accounts')
-  if (account.assignedUserId) {
-    revalidatePath(`/users/${account.assignedUserId}`)
-  }
+  revalidatePath(`/users/${userId}`)
   return { success: true }
 }
 
 export async function updateM365AccountUsage(accountId: string, usageType: string) {
   await requireAdmin()
-  const account = await prisma.m365Account.findUnique({ where: { id: accountId } })
+  const account = await prisma.m365Account.findUnique({
+    where: { id: accountId },
+    include: { assignedUsers: true }
+  })
   await prisma.m365Account.update({
     where: { id: accountId },
     data: { usageType }
   })
   revalidatePath('/accounts')
-  if (account?.assignedUserId) {
-    revalidatePath(`/users/${account.assignedUserId}`)
+  if (account?.assignedUsers) {
+    for (const u of account.assignedUsers) {
+      revalidatePath(`/users/${u.id}`)
+    }
   }
   return { success: true }
 }

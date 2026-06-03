@@ -4,7 +4,7 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('Unassigning assets and accounts...')
   await prisma.asset.updateMany({ data: { assignedUserId: null, status: 'In Stock' } })
-  await prisma.m365Account.updateMany({ data: { assignedUserId: null, usageType: null } })
+  await prisma.m365Account.updateMany({ data: { usageType: null } })
   
   console.log('Deleting dependent entities...')
   await prisma.ticketComment.deleteMany()

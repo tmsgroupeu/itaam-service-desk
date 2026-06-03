@@ -7,7 +7,7 @@ export default async function OnboardPage() {
     prisma.user.findMany({ orderBy: [{ department: 'asc' }, { name: 'asc' }] }),
     prisma.asset.findMany({ where: { status: 'In Stock' }, orderBy: [{ category: 'asc' }, { brandModel: 'asc' }] }),
     prisma.accessPoint.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
-    prisma.m365Account.findMany({ where: { assignedUserId: null }, orderBy: { displayName: 'asc' } })
+    prisma.m365Account.findMany({ include: { assignedUsers: true }, orderBy: { displayName: 'asc' } })
   ])
   return <OnboardWizard users={users} stockAssets={stockAssets} accessPoints={accessPoints} availableM365Accounts={availableM365Accounts} />
 }

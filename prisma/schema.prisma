@@ -24,7 +24,7 @@ model User {
   deskExtension    String?
   
   // Relations
-  m365Accounts     M365Account[]
+  m365Accounts     M365Account[] @relation("UserM365Accounts")
   assets           Asset[]
   accessPoints     UserAccess[]
   accounts         Account[]    // NextAuth relation
@@ -120,8 +120,7 @@ model M365Account {
   usageType        String?  // e.g. "Primary Device", "Teams Login", "Shared Mailbox"
 
   // Relation to biological User
-  assignedUserId   String?
-  assignedUser     User?    @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  assignedUsers    User[]   @relation("UserM365Accounts")
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

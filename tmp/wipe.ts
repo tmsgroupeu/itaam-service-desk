@@ -7,7 +7,7 @@ async function main() {
   
   // Unassign assets and M365 accounts first
   await prisma.asset.updateMany({ data: { assignedUserId: null, status: 'In Stock' } })
-  await prisma.m365Account.updateMany({ data: { assignedUserId: null } })
+  // relation cleared automatically via user deletion
   
   // Delete dependent rows
   await prisma.ticketComment.deleteMany()
